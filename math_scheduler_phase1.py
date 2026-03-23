@@ -162,6 +162,13 @@ INSTRUCTOR_BLOCK_PREFS: dict = {
 }
 W_PREF_VIOLATION = 6     # cost per section not placed in a preferred block
 
+# ── SC-8  Level-based time distribution ──────────────────────────────────────
+# Move upper level classes (>= 2260) to midday and spread lower level (<= 2250)
+MIDDAY_BLOCKS = {1, 2, 3}  # 9:55 AM, 11:35 AM, 1:15 PM
+LOWER_LEVEL_MAX = 2250
+W_LOWER_MIDDAY = 5         # Light penalty for Calc 1/Precalc in midday
+W_UPPER_NONMIDDAY = 15     # Stonger penalty for Calc 2+ outside midday
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. HELPERS
@@ -409,6 +416,7 @@ def build_model(sections, rooms):
     SC-5  Block over-cap surplus                W_BLOCK_OVER     per section over ceiling
     SC-6  Instructor overload                   W_INSTR_OVERLOAD per section above limit
     SC-7  Professor block preferences           W_PREF_VIOLATION per non-preferred block
+    SC-8  Level time distribution               W_LOWER_MIDDAY / W_UPPER_NONMIDDAY
     """
     model = cp_model.CpModel()
 
@@ -655,6 +663,21 @@ def build_model(sections, rooms):
                     continue
                 if b not in prefs:
                     obj.append(W_PREF_VIOLATION * assign[sid, ri, b])
+
+    # ── SC-8  Level-based time distribution ──────────────────────────────────
+    for s in sections:
+        sid = s["id"]
+        course_num = s["course"]
+        is_lower = (course_num <= LOWER_LEVEL_MAX)
+        for ri in range(n_rooms):
+            for b in BLOCK_IDS:
+                if (sid, ri, b) not in assign:
+                    continue
+                is_midday = (b in MIDDAY_BLOCKS)
+                if is_lower and is_midday:
+                    obj.append(W_LOWER_MIDDAY * assign[sid, ri, b])
+                elif not is_lower and not is_midday:
+                    obj.append(W_UPPER_NONMIDDAY * assign[sid, ri, b])
 
     model.Minimize(sum(obj) if obj else model.NewIntVar(0, 0, "zero"))
 
