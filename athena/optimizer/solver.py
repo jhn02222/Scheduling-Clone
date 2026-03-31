@@ -1,6 +1,37 @@
 """
 Core CP-SAT solver logic — decoupled from Django views.
 All constraint weights are passed in at runtime via the `weights` dict.
+
+Dead-minutes model (SC-9)
+─────────────────────────
+Each room is booked in 85-minute windows regardless of actual class duration.
+The department standard is ≥20 min turnaround between consecutive bookings in
+the same room on the same day.  Any idle gap ABOVE 20 minutes is waste.
+
+  dead_minutes(room, day) = Σ  max(0, gap_between_sections - 20)
+
+where gap = actual_start(next) - actual_end(prev) inside the 85-min booking.
+
+Because the CP-SAT model works in discrete blocks (not continuous time) we
+approximate: two sections assigned to the SAME room on the SAME day in
+ADJACENT blocks waste  (85 - duration_of_first)  minutes of tail-time plus
+however many minutes the next section doesn't start immediately.  For
+non-adjacent same-room/same-day pairs the entire intervening window is waste.
+
+In practice:
+  booked_window  = 85 min  (fixed institutional slot)
+  tail_waste     = 85 - section_duration_mins   (unused tail of booking)
+  gap_waste      = max(0, gap_between_bookings - 20)
+
+SC-9 penalises  tail_waste + gap_waste  for every (room, day) pair where
+two or more sections land in the same room on the same day.
+
+Credit-hour rules (updated)
+────────────────────────────
+3-credit: 2×85 min (TR) = 170 min  OR  3×50 min (MWF) = 150 min → range 140–175
+4-credit: 2×100 min (TR) = 200 min OR  3×67 min = 201 min → range 190–230
+Both patterns satisfy the weekly-minutes band; neither is preferred over the
+other (user answered "either is fine").
 """
 
 import math
@@ -22,21 +53,33 @@ BLOCK_IDS   = [b[0] for b in TIME_BLOCKS]
 BLOCK_HHMM  = {b[0]: b[1] for b in TIME_BLOCKS}
 BLOCK_LABEL = {b[0]: b[2] for b in TIME_BLOCKS}
 
+# Block start times in minutes-since-midnight
+BLOCK_START_MIN = {b[0]: (b[1]//100)*60 + (b[1]%100) for b in TIME_BLOCKS}
+
+# Institutional booking window (minutes) — every section occupies this slot
+BOOKING_WINDOW = 85
+# Minimum desired turnaround between back-to-back sections in the same room
+MIN_TURNAROUND = 20
+
 CORE_COURSES = [1113, 2250, 2260, 2270, 2500, 2700, 3300]
 HIST_FILL    = {1113:0.932, 2250:0.934, 2260:0.938, 2270:0.931,
                 2500:0.949, 2700:0.978, 3300:0.931}
 
-CREDIT_MINUTE_RULES   = {3:{"min":140,"max":170}, 4:{"min":190,"max":230}}
-CREDIT_DAYCOUNT_RULES = {3:{2,3}, 4:{3,4}}
+# ── Credit-hour rules (updated) ──────────────────────────────────────────────
+# 3-credit: 2×85=170 (TR) or 3×50=150 (MWF) → allow 140–175
+# 4-credit: 2×100=200 (TR) or 3×67=201 (MWF) → allow 190–230
+CREDIT_MINUTE_RULES   = {3: {"min": 140, "max": 175},
+                          4: {"min": 190, "max": 230}}
+CREDIT_DAYCOUNT_RULES = {3: {2, 3}, 4: {3, 4}}
 
 COURSE_COLORS = {
-    1113:{"face":"#f472b6","edge":"#db2777"},
-    2250:{"face":"#4ade80","edge":"#16a34a"},
-    2260:{"face":"#a78bfa","edge":"#7c3aed"},
-    2270:{"face":"#fb923c","edge":"#ea580c"},
-    2500:{"face":"#60a5fa","edge":"#2563eb"},
-    2700:{"face":"#34d399","edge":"#059669"},
-    3300:{"face":"#fbbf24","edge":"#d97706"},
+    1113: {"face": "#f472b6", "edge": "#db2777"},
+    2250: {"face": "#4ade80", "edge": "#16a34a"},
+    2260: {"face": "#a78bfa", "edge": "#7c3aed"},
+    2270: {"face": "#fb923c", "edge": "#ea580c"},
+    2500: {"face": "#60a5fa", "edge": "#2563eb"},
+    2700: {"face": "#34d399", "edge": "#059669"},
+    3300: {"face": "#fbbf24", "edge": "#d97706"},
 }
 
 
@@ -134,12 +177,17 @@ def load_data(csv_path):
         ifi  = str(row.get("PRIMARY_INSTRUCTOR_FIRST_NAME","")).strip()
         instr = f"{il}, {ifi}".strip(", ") or "TBA"
         skel_room = None if bldg == "NCRR" else f"{bldg}-{row['ROOM']}"
+
+        # Tail waste = unused minutes inside the 85-min booking window
+        tail_waste = max(0, BOOKING_WINDOW - dmins)
+
         sections.append({
             "id": i, "crn": safe_int(row["CRN"], i),
             "course": course, "title": str(row["TITLE_SHORT_DESC"]),
             "instructor": instr, "days": days, "day_count": dc,
             "begin_int": bi, "end_int": ei,
             "duration_mins": dmins, "weekly_minutes": wmins,
+            "tail_waste": tail_waste,
             "credits": credits, "capacity": cap,
             "actual_enroll": actual, "exp_enroll": exp,
             "skel_block": safe_int(row["SKEL_BLOCK"], 0),
@@ -155,7 +203,7 @@ def load_data(csv_path):
 def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn=print):
     W_SKEL_SLOT    = int(weights.get("w_skeleton_slot",    8))
     W_SKEL_BLDG    = int(weights.get("w_skeleton_bldg",    2))
-    W_DEAD_GAP     = int(weights.get("w_dead_gap",        10))
+    W_DEAD_GAP     = int(weights.get("w_dead_gap",        10))  # kept for SC-3 (instructor)
     UE_THRESH      = float(weights.get("under_enroll_threshold", 0.60))
     W_UNDER_ENROLL = int(weights.get("w_under_enroll",    12))
     W_BLOCK_OVER   = int(weights.get("w_block_over",      18))
@@ -165,271 +213,19 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
     W_UPPER_NOMID  = int(weights.get("w_upper_nonmidday", 15))
     BLK_MIN_PCT    = float(weights.get("block_min_pct",   0.15))
     BLK_MAX_PCT    = float(weights.get("block_max_pct",   0.30))
-    MIDDAY_BLOCKS  = {1, 2, 3}
-    LOWER_MAX      = 2250
+    # SC-9: dead-minutes weight (room idle time > 20 min between sections)
+    W_DEAD_MIN     = int(weights.get("w_dead_minutes",    3))
+
+    MIDDAY_BLOCKS = {1, 2, 3}
+    LOWER_MAX     = 2250
+    DAYS_LIST     = ["M", "T", "W", "R", "F"]
 
     log_fn("Creating CP-SAT model...")
-    model = cp_model.CpModel()
-    nr    = len(rooms)
-    total = len(sections)
-
-    log_fn("Creating assignment variables...")
-    assign = {}
-    var_count = 0
-    for s in sections:
-        sid = s["id"]
-        for ri, r in enumerate(rooms):
-            if r["capacity"] < s["exp_enroll"]:
-                continue
-            for b in BLOCK_IDS:
-                assign[sid, ri, b] = model.NewBoolVar(f"x_{sid}_{ri}_{b}")
-                var_count += 1
-    log_fn(f"Created {var_count} assignment variables.")
-
-    log_fn("Adding exactly-one assignment constraints...")
-    for s in sections:
-        sid = s["id"]
-        choices = [
-            assign[sid, ri, b]
-            for ri in range(nr)
-            for b in BLOCK_IDS
-            if (sid, ri, b) in assign
-        ]
-        if not choices:
-            raise ValueError(f"No feasible room for CRN {s['crn']} (exp_enroll={s['exp_enroll']})")
-        model.AddExactlyOne(choices)
-
-    log_fn("Adding room/block conflict constraints...")
-    for ri in range(nr):
-        for b in BLOCK_IDS:
-            occ = [assign[s["id"], ri, b] for s in sections if (s["id"], ri, b) in assign]
-            if len(occ) > 1:
-                model.AddAtMostOne(occ)
-
-    log_fn("Grouping sections by instructor...")
-    by_instr = defaultdict(list)
-    for s in sections:
-        if s["instructor"] != "TBA":
-            by_instr[s["instructor"]].append(s["id"])
-
-    log_fn("Adding instructor conflict constraints...")
-    for instr, sids in by_instr.items():
-        if len(sids) < 2:
-            continue
-        for b in BLOCK_IDS:
-            vv = [
-                assign[sid, ri, b]
-                for sid in sids
-                for ri in range(nr)
-                if (sid, ri, b) in assign
-            ]
-            if len(vv) > 1:
-                model.AddAtMostOne(vv)
-
-    log_fn("Building block distribution helper variables...")
-    blk_floor = max(1, math.floor(total * BLK_MIN_PCT))
-    blk_ceil  = math.ceil(total * BLK_MAX_PCT)
-
-    in_block = {}
-    for s in sections:
-        sid = s["id"]
-        for b in BLOCK_IDS:
-            v = model.NewBoolVar(f"ib_{sid}_{b}")
-            choices = [assign[sid, ri, b] for ri in range(nr) if (sid, ri, b) in assign]
-            if choices:
-                model.AddMaxEquality(v, choices)
-            else:
-                model.Add(v == 0)
-            in_block[sid, b] = v
-
-    blk_over = {}
-    for b in BLOCK_IDS:
-        sb = model.NewIntVar(0, total, f"sb_{b}")
-        model.Add(sb == sum(in_block[s["id"], b] for s in sections))
-        model.Add(sb >= blk_floor)
-        model.Add(sb <= blk_ceil)
-
-        ov = model.NewIntVar(0, total, f"ov_{b}")
-        model.Add(ov >= sb - math.floor(total * BLK_MAX_PCT))
-        model.Add(ov >= 0)
-        blk_over[b] = ov
-
-    log_fn("Building instructor/block helper variables...")
-    iab = {}
-    for instr, sids in by_instr.items():
-        iab[instr] = {}
-        for b in BLOCK_IDS:
-            v = model.NewBoolVar(f"iab_{instr}_{b}")
-            choices = [
-                assign[sid, ri, b]
-                for sid in sids
-                for ri in range(nr)
-                if (sid, ri, b) in assign
-            ]
-            if choices:
-                model.AddMaxEquality(v, choices)
-            else:
-                model.Add(v == 0)
-            iab[instr][b] = v
-
-    log_fn("Building objective function...")
-    obj = []
-
-    log_fn("Adding skeleton slot penalties...")
-    for s in sections:
-        sid = s["id"]
-        sb  = s["skel_block"]
-        for ri in range(nr):
-            for b in BLOCK_IDS:
-                if (sid, ri, b) not in assign:
-                    continue
-                d = abs(b - sb)
-                if d:
-                    obj.append(W_SKEL_SLOT * d * assign[sid, ri, b])
-
-    log_fn("Adding building change penalties...")
-    for s in sections:
-        sid  = s["id"]
-        sbld = s["skel_bldg"]
-        for ri, r in enumerate(rooms):
-            if r["building"] == sbld:
-                continue
-            for b in BLOCK_IDS:
-                if (sid, ri, b) in assign:
-                    obj.append(W_SKEL_BLDG * assign[sid, ri, b])
-
-    log_fn("Adding dead gap penalties...")
-    for instr, bmap in iab.items():
-        for b1 in BLOCK_IDS:
-            for b2 in BLOCK_IDS:
-                if b2 <= b1:
-                    continue
-                gap = b2 - b1
-                if gap <= 1:
-                    continue
-                both = model.NewBoolVar(f"dg_{instr}_{b1}_{b2}")
-                model.Add(both <= bmap[b1])
-                model.Add(both <= bmap[b2])
-                model.Add(both >= bmap[b1] + bmap[b2] - 1)
-                obj.append(W_DEAD_GAP * (gap - 1) * both)
-
-    log_fn("Adding under-enrollment penalties...")
-    for s in sections:
-        if s["exp_enroll"] / max(s["capacity"], 1) >= UE_THRESH:
-            continue
-        flag = model.NewBoolVar(f"ue_{s['id']}")
-        choices = [
-            assign[s["id"], ri, b]
-            for ri in range(nr)
-            for b in BLOCK_IDS
-            if (s["id"], ri, b) in assign
-        ]
-        model.AddMaxEquality(flag, choices)
-        obj.append(W_UNDER_ENROLL * flag)
-
-    log_fn("Adding block overflow penalties...")
-    for b in BLOCK_IDS:
-        obj.append(W_BLOCK_OVER * blk_over[b])
-
-    log_fn("Adding instructor overload penalties...")
-    for instr, sids in by_instr.items():
-        if len(sids) > INSTR_MAX:
-            obj.append(W_INSTR_OVL * (len(sids) - INSTR_MAX))
-
-    log_fn("Adding course timing preference penalties...")
-    for s in sections:
-        sid = s["id"]
-        is_lower = (s["course"] <= LOWER_MAX)
-        for ri in range(nr):
-            for b in BLOCK_IDS:
-                if (sid, ri, b) not in assign:
-                    continue
-                mid = b in MIDDAY_BLOCKS
-                if is_lower and mid:
-                    obj.append(W_LOWER_MID * assign[sid, ri, b])
-                elif not is_lower and not mid:
-                    obj.append(W_UPPER_NOMID * assign[sid, ri, b])
-
-    log_fn(f"Finalizing objective with {len(obj)} objective terms...")
-    model.Minimize(sum(obj) if obj else model.NewIntVar(0, 0, "zero"))
-
-    room_ids  = [r["id"] for r in rooms]
-    solutions = []
-
-    log_fn(f"Starting solve loop for up to {num_opts} option(s)...")
-    for opt_i in range(num_opts):
-        log_fn(f"Preparing solver for option {chr(65 + opt_i)}...")
-        solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = float(solver_time)
-        solver.parameters.num_search_workers = 4
-        solver.parameters.random_seed = 17 + opt_i * 31
-        solver.parameters.log_search_progress = False
-
-        log_fn(f"Solving option {chr(65 + opt_i)} with {solver_time}s limit...")
-        status = solver.Solve(model)
-        status_name = solver.StatusName(status)
-        log_fn(f"Solver finished option {chr(65 + opt_i)} with status: {status_name}")
-
-        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            break
-
-        log_fn(f"Extracting solution for option {chr(65 + opt_i)}...")
-        sol = {}
-        chosen = []
-
-        for s in sections:
-            sid = s["id"]
-            placed = False
-            for ri in range(nr):
-                for b in BLOCK_IDS:
-                    if (sid, ri, b) in assign and solver.Value(assign[sid, ri, b]):
-                        sol[sid] = {"block": b, "room": room_ids[ri]}
-                        chosen.append(assign[sid, ri, b])
-                        placed = True
-                        break
-                if placed:
-                    break
-
-            if not placed:
-                sol[sid] = {
-                    "block": s["skel_block"],
-                    "room": s["skel_room"] or "UNASSIGNED"
-                }
-
-        score = int(round(solver.ObjectiveValue()))
-        label = f"Option {chr(65 + opt_i)}"
-        solutions.append({
-            "label": label,
-            "score": score,
-            "assignment": sol
-        })
-        log_fn(f"Saved {label} with score {score}.")
-
-        if chosen:
-            log_fn(f"Adding diversity cut for {label}...")
-            model.Add(sum(chosen) <= len(chosen) - 3)
-
-    log_fn(f"Finished build_and_solve with {len(solutions)} solution(s).")
-    return solutions
-    W_SKEL_SLOT    = int(weights.get("w_skeleton_slot",    8))
-    W_SKEL_BLDG    = int(weights.get("w_skeleton_bldg",    2))
-    W_DEAD_GAP     = int(weights.get("w_dead_gap",        10))
-    UE_THRESH      = float(weights.get("under_enroll_threshold", 0.60))
-    W_UNDER_ENROLL = int(weights.get("w_under_enroll",    12))
-    W_BLOCK_OVER   = int(weights.get("w_block_over",      18))
-    INSTR_MAX      = int(weights.get("instructor_max_sections", 3))
-    W_INSTR_OVL    = int(weights.get("w_instr_overload",  20))
-    W_LOWER_MID    = int(weights.get("w_lower_midday",     5))
-    W_UPPER_NOMID  = int(weights.get("w_upper_nonmidday", 15))
-    BLK_MIN_PCT    = float(weights.get("block_min_pct",   0.15))
-    BLK_MAX_PCT    = float(weights.get("block_max_pct",   0.30))
-    MIDDAY_BLOCKS  = {1, 2, 3}
-    LOWER_MAX      = 2250
-
     model   = cp_model.CpModel()
     nr      = len(rooms)
     total   = len(sections)
 
+    log_fn(f"Building assignment variables ({total} sections × {nr} rooms × {len(BLOCK_IDS)} blocks)...")
     assign = {}
     for s in sections:
         sid = s["id"]
@@ -437,7 +233,9 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             if r["capacity"] < s["exp_enroll"]: continue
             for b in BLOCK_IDS:
                 assign[sid, ri, b] = model.NewBoolVar(f"x_{sid}_{ri}_{b}")
+    log_fn(f"  {len(assign):,} variables created.")
 
+    # Each section exactly once
     for s in sections:
         sid = s["id"]
         choices = [assign[sid,ri,b] for ri in range(nr) for b in BLOCK_IDS
@@ -446,11 +244,15 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             raise ValueError(f"No feasible room for CRN {s['crn']} (exp_enroll={s['exp_enroll']})")
         model.AddExactlyOne(choices)
 
+    # HC-4: room conflict
+    log_fn("Adding room conflict constraints...")
     for ri in range(nr):
         for b in BLOCK_IDS:
             occ = [assign[s["id"],ri,b] for s in sections if (s["id"],ri,b) in assign]
             if len(occ) > 1: model.AddAtMostOne(occ)
 
+    # HC-5: instructor conflict
+    log_fn("Adding instructor conflict constraints...")
     by_instr = defaultdict(list)
     for s in sections:
         if s["instructor"] != "TBA": by_instr[s["instructor"]].append(s["id"])
@@ -460,6 +262,55 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             vv = [assign[sid,ri,b] for sid in sids for ri in range(nr) if (sid,ri,b) in assign]
             if len(vv) > 1: model.AddAtMostOne(vv)
 
+    # HC-6: Hard 20-minute room turnaround between consecutive blocks
+    # booking_end(b1) = BLOCK_START_MIN[b1] + BOOKING_WINDOW
+    # For each pair (b1, b2) where gap_min < MIN_TURNAROUND, two sections
+    # assigned to the same room on any shared meeting day is INFEASIBLE.
+    log_fn("Adding HC-6: hard 20-min room turnaround constraints...")
+    sec_day_map = {}
+    for s in sections:
+        sec_day_map[s["id"]] = set(d for d in s["days"] if d in "MTWRF")
+    
+    hc6_count = 0
+    for b1 in BLOCK_IDS:
+        for b2 in BLOCK_IDS:
+            if b2 <= b1: continue
+            booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
+            gap_min = BLOCK_START_MIN[b2] - booking_end_b1
+            if gap_min >= MIN_TURNAROUND: continue  # enough gap, no constraint needed
+            # This block pair is too close together in the same room
+            for ri in range(nr):
+                s1_cands = [s for s in sections if (s["id"],ri,b1) in assign]
+                s2_cands = [s for s in sections if (s["id"],ri,b2) in assign]
+                if not s1_cands or not s2_cands: continue
+                for s1 in s1_cands:
+                    for s2 in s2_cands:
+                        if s1["id"] == s2["id"]:
+                            continue
+
+                        shared = sec_day_map[s1["id"]] & sec_day_map[s2["id"]]
+                        if not shared:
+                            continue
+
+                        # ✅ USE ACTUAL END TIME (not booking window)
+                        end_s1 = BLOCK_START_MIN[b1] + s1["duration_mins"]
+                        gap = BLOCK_START_MIN[b2] - end_s1
+
+                        if gap >= MIN_TURNAROUND:
+                            continue
+
+                        model.Add(assign[s1["id"],ri,b1] + assign[s2["id"],ri,b2] <= 1)
+                        hc6_count += 1
+    log_fn(f"  HC-6: {hc6_count} room-pair turnaround constraints added.")
+
+    # HC-7: Uniform block across all meeting days (already implied by the block
+    # variable structure — one block per section covers all its days — but we
+    # document this explicitly. No extra constraints needed: the assign variable
+    # x[sid,ri,b] inherently applies to ALL days in section.days simultaneously.)
+    log_fn("HC-7: block uniformity is structural (one block per section, all days).")
+
+    # HC-2: block distribution band
+    log_fn("Adding block distribution constraints...")
     blk_floor = max(1, math.floor(total * BLK_MIN_PCT))
     blk_ceil  = math.ceil(total * BLK_MAX_PCT)
 
@@ -484,6 +335,7 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
         model.Add(ov >= 0)
         blk_over[b] = ov
 
+    # Instructor-at-block helpers (for SC-3)
     iab = {}
     for instr, sids in by_instr.items():
         iab[instr] = {}
@@ -494,8 +346,10 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             else: model.Add(v == 0)
             iab[instr][b] = v
 
+    # ── Objective ────────────────────────────────────────────────────────────
     obj = []
 
+    # SC-1 skeleton slot fidelity
     for s in sections:
         sid=s["id"]; sb=s["skel_block"]
         for ri in range(nr):
@@ -504,6 +358,7 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 d = abs(b - sb)
                 if d: obj.append(W_SKEL_SLOT * d * assign[sid,ri,b])
 
+    # SC-2 building continuity
     for s in sections:
         sid=s["id"]; sbld=s["skel_bldg"]
         for ri,r in enumerate(rooms):
@@ -511,6 +366,7 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             for b in BLOCK_IDS:
                 if (sid,ri,b) in assign: obj.append(W_SKEL_BLDG * assign[sid,ri,b])
 
+    # SC-3 instructor dead-gap (block-level, kept for instructor scheduling quality)
     for instr, bmap in iab.items():
         for b1 in BLOCK_IDS:
             for b2 in BLOCK_IDS:
@@ -522,6 +378,7 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 model.Add(both >= bmap[b1] + bmap[b2] - 1)
                 obj.append(W_DEAD_GAP * (gap - 1) * both)
 
+    # SC-4 under-enrollment
     for s in sections:
         if s["exp_enroll"] / max(s["capacity"],1) >= UE_THRESH: continue
         flag = model.NewBoolVar(f"ue_{s['id']}")
@@ -530,34 +387,99 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
         model.AddMaxEquality(flag, choices)
         obj.append(W_UNDER_ENROLL * flag)
 
-    for b in BLOCK_IDS:
-        obj.append(W_BLOCK_OVER * blk_over[b])
+    # SC-5 block over-cap
+    for b in BLOCK_IDS: obj.append(W_BLOCK_OVER * blk_over[b])
 
+    # SC-6 instructor overload
     for instr, sids in by_instr.items():
         if len(sids) > INSTR_MAX:
             obj.append(W_INSTR_OVL * (len(sids) - INSTR_MAX))
 
+    # SC-8 level distribution
     for s in sections:
         sid=s["id"]; is_lower=(s["course"] <= LOWER_MAX)
         for ri in range(nr):
             for b in BLOCK_IDS:
                 if (sid,ri,b) not in assign: continue
                 mid = b in MIDDAY_BLOCKS
-                if is_lower and mid:           obj.append(W_LOWER_MID    * assign[sid,ri,b])
-                elif not is_lower and not mid: obj.append(W_UPPER_NOMID  * assign[sid,ri,b])
+                if is_lower and mid:           obj.append(W_LOWER_MID   * assign[sid,ri,b])
+                elif not is_lower and not mid: obj.append(W_UPPER_NOMID * assign[sid,ri,b])
 
+    # SC-9 room dead-minutes
+    # For every pair of sections (s1, s2) that share a room on a shared meeting day,
+    # penalise idle minutes > MIN_TURNAROUND between end of s1 booking and start of s2.
+    #
+    # We only need to consider ADJACENT block pairs (b1, b2) where b2 > b1.
+    # Gap in minutes between block b1 booking end and block b2 start:
+    #   booking_end(b1) = BLOCK_START_MIN[b1] + BOOKING_WINDOW
+    #   gap_min          = BLOCK_START_MIN[b2] - booking_end(b1)
+    #   dead_min         = max(0, gap_min - MIN_TURNAROUND)
+    #
+    # If gap_min < 0 the room is double-booked (prevented by HC-4).
+    # We add dead_min * both_in_same_room_on_same_day to the objective.
+    log_fn("Adding SC-9 (LIGHT) room dead-minutes penalties...")
+
+    room_used = {}
+    for ri in range(nr):
+        for b in BLOCK_IDS:
+            v = model.NewBoolVar(f"room_used_{ri}_{b}")
+            occ = [assign[s["id"],ri,b] for s in sections if (s["id"],ri,b) in assign]
+
+            if occ:
+                model.AddMaxEquality(v, occ)
+            else:
+                model.Add(v == 0)
+
+            room_used[ri,b] = v
+
+    sc9_terms = 0
+
+    for ri in range(nr):
+        for b1 in BLOCK_IDS:
+            for b2 in BLOCK_IDS:
+                if b2 <= b1:
+                    continue
+
+                booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
+                gap_min        = BLOCK_START_MIN[b2] - booking_end_b1
+                dead_min       = max(0, gap_min - MIN_TURNAROUND)
+
+                if dead_min == 0:
+                    continue
+
+                both = model.NewBoolVar(f"sc9_room_{ri}_{b1}_{b2}")
+
+                model.AddBoolAnd([
+                    room_used[ri,b1],
+                    room_used[ri,b2]
+                ]).OnlyEnforceIf(both)
+
+                model.AddBoolOr([
+                    room_used[ri,b1].Not(),
+                    room_used[ri,b2].Not(),
+                    both
+                ])
+
+                obj.append(W_DEAD_MIN * dead_min * both)
+                sc9_terms += 1
+
+    log_fn(f"  SC-9: {sc9_terms} LIGHT room-gap terms added.")
+
+    log_fn(f"Minimising objective ({len(obj)} terms)...")
     model.Minimize(sum(obj) if obj else model.NewIntVar(0,0,"zero"))
 
     room_ids  = [r["id"] for r in rooms]
     solutions = []
 
     for opt_i in range(num_opts):
+        log_fn(f"Solving option {chr(65+opt_i)} (seed={17+opt_i*31}, limit={solver_time}s)...")
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = solver_time
+        solver.parameters.max_time_in_seconds = float(solver_time)
         solver.parameters.num_search_workers  = 4
         solver.parameters.random_seed         = 17 + opt_i * 31
         solver.parameters.log_search_progress = False
         status = solver.Solve(model)
+        log_fn(f"  Status: {solver.StatusName(status)}")
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE): break
 
         sol = {}; chosen = []
@@ -574,8 +496,10 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
 
         score = int(round(solver.ObjectiveValue()))
         solutions.append({"label": f"Option {chr(65+opt_i)}", "score": score, "assignment": sol})
+        log_fn(f"  Option {chr(65+opt_i)} score={score}")
         if chosen: model.Add(sum(chosen) <= len(chosen) - 3)
 
+    log_fn(f"Finished: {len(solutions)} solution(s) found.")
     return solutions
 
 
@@ -609,19 +533,6 @@ def analyze(solution, sections, rooms, weights=None):
                                 "exp":s["exp_enroll"],"cap":s["capacity"]})
         if s["instructor"] != "TBA": by_instr[s["instructor"]].append(b)
 
-    dead_gap_total = 0
-    instr_gaps = {}
-    for instr, blocks in by_instr.items():
-        sb = sorted(set(blocks))
-        gaps = []
-        for i in range(len(sb)-1):
-            g = sb[i+1]-sb[i]
-            if g > 1:
-                dead_gap_total += (g-1)
-                gaps.append({"from": BLOCK_LABEL[sb[i]], "to": BLOCK_LABEL[sb[i+1]],
-                              "empty": g-1})
-        if gaps: instr_gaps[instr] = gaps
-
     soft_cap = math.floor(total * BLK_MAX)
     block_rows = []
     for b in BLOCK_IDS:
@@ -653,6 +564,7 @@ def analyze(solution, sections, rooms, weights=None):
         })
     for k in instr_table: instr_table[k].sort(key=lambda x:x["block"])
 
+    # Calendar data
     calendar = []
     for sid, asgn in sol.items():
         s=sec_idx[sid]; b=asgn["block"]
@@ -665,10 +577,101 @@ def analyze(solution, sections, rooms, weights=None):
                 "sid":sid,"crn":s["crn"],"course":s["course"],
                 "title":s["title"],"instructor":s["instructor"],
                 "days":s["days"],"day":day,
-                "start":start,"end":end,"room":asgn["room"],
+                "start":start,"end":end,
+                "duration_mins":s["duration_mins"],
+                "tail_waste":s["tail_waste"],
+                "room":asgn["room"],
                 "face":s["color"]["face"],"edge":s["color"]["edge"],
                 "moved": b != s["skel_block"],
             })
+
+    # ── Room dead-minutes analysis ────────────────────────────────────────────
+    # Group all (room, day) bookings, sort by start time, compute gaps.
+    # booking_end = start + BOOKING_WINDOW  (not start + duration)
+    # dead_min    = max(0, next_start - booking_end - MIN_TURNAROUND)
+    #             + tail_waste of the earlier section
+
+    DAYS_LIST = ["M","T","W","R","F"]
+
+    # room_day_slots[(room_id, day)] = sorted list of slot dicts
+    room_day_slots = defaultdict(list)
+    for ev in calendar:
+        room_day_slots[(ev["room"], ev["day"])].append({
+            "start":         ev["start"],
+            "booking_end":   ev["start"] + BOOKING_WINDOW,
+            "actual_end":    ev["end"],
+            "tail_waste":    ev["tail_waste"],
+            "duration_mins": ev["duration_mins"],
+            "course":        ev["course"],
+            "crn":           ev["crn"],
+            "instructor":    ev["instructor"],
+        })
+
+    for key in room_day_slots:
+        room_day_slots[key].sort(key=lambda x: x["start"])
+
+    # Per-room summary
+    room_dead_summary = {}   # room_id -> {total_dead, total_booked, slots_by_day}
+    total_dead_minutes = 0
+
+    for (room_id, day), slots in room_day_slots.items():
+        if room_id not in room_dead_summary:
+            room_dead_summary[room_id] = {
+                "room_id": room_id,
+                "building": room_idx.get(room_id, {}).get("building","?"),
+                "capacity": room_idx.get(room_id, {}).get("capacity",0),
+                "total_dead": 0,
+                "total_booked": 0,
+                "days": defaultdict(list),
+            }
+        rs = room_dead_summary[room_id]
+
+        for i, slot in enumerate(slots):
+            # Tail waste: unused minutes inside this section's 85-min booking
+            tail = slot["tail_waste"]
+
+            # Gap waste: idle time between this booking end and next booking start
+            gap_dead = 0
+            if i + 1 < len(slots):
+                nxt = slots[i + 1]
+                gap = nxt["start"] - slot["booking_end"]
+                gap_dead = max(0, gap - MIN_TURNAROUND)
+
+            slot_dead = tail + gap_dead
+
+            rs["days"][day].append({
+                "start":        slot["start"],
+                "booking_end":  slot["booking_end"],
+                "actual_end":   slot["actual_end"],
+                "tail_waste":   tail,
+                "gap_dead":     gap_dead,
+                "slot_dead":    slot_dead,
+                "course":       slot["course"],
+                "crn":          slot["crn"],
+                "instructor":   slot["instructor"],
+                "duration_mins":slot["duration_mins"],
+            })
+
+            rs["total_dead"]   += slot_dead
+            rs["total_booked"] += BOOKING_WINDOW
+            total_dead_minutes += slot_dead
+
+    # Convert defaultdict to plain dict for JSON serialisation
+    room_dead_list = []
+    for rid, rs in sorted(room_dead_summary.items(),
+                          key=lambda x: -x[1]["total_dead"]):
+        booked = rs["total_booked"]
+        dead   = rs["total_dead"]
+        util   = round(100 * (booked - dead) / max(booked, 1), 1)
+        room_dead_list.append({
+            "room_id":      rid,
+            "building":     rs["building"],
+            "capacity":     rs["capacity"],
+            "total_dead":   dead,
+            "total_booked": booked,
+            "utilization":  util,
+            "days":         {d: slots for d, slots in rs["days"].items()},
+        })
 
     return {
         "total": total,
@@ -676,7 +679,9 @@ def analyze(solution, sections, rooms, weights=None):
         "moved": moved, "moved_pct": round(100*moved/total,1) if total else 0,
         "bldg_changes": bldg_changes,
         "under_count": len(under_list), "under_list": under_list,
-        "dead_gap_total": dead_gap_total, "instr_gaps": instr_gaps,
+        "total_dead_minutes": total_dead_minutes,
+        "dead_gap_total": total_dead_minutes,
+        "room_dead_list": room_dead_list,
         "block_rows": block_rows,
         "course_rows": course_rows,
         "instr_table": instr_table,

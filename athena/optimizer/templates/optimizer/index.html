@@ -8,140 +8,215 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ── Reset & base ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --uga-red:      #BA0C2F;
-  --uga-red-dark: #8B0020;
-  --uga-red-glow: rgba(186,12,47,0.25);
-  --uga-black:    #0D0D0D;
-  --uga-silver:   #C0C0C0;
-  --panel-bg:     #141414;
-  --panel-border: rgba(186,12,47,0.30);
-  --surface:      #1C1C1C;
-  --surface-2:    #242424;
-  --text:         #F0EDE8;
-  --text-muted:   #8A8580;
-  --green:        #22c55e;
-  --amber:        #f59e0b;
-  --red:          #ef4444;
-  --radius:       6px;
-  --sidebar-w:    320px;
+  --uga-red:        #BA0C2F;
+  --uga-red-dark:   #8B0020;
+  --uga-red-glow:   rgba(186,12,47,0.25);
+  --uga-black:      #0D0D0D;
+  --uga-silver:     #C0C0C0;
+  --panel-bg:       #141414;
+  --panel-border:   rgba(186,12,47,0.30);
+  --surface:        #1C1C1C;
+  --surface-2:      #242424;
+  --text:           #F0EDE8;
+  --text-muted:     #8A8580;
+  --accent-green:   #22c55e;
+  --accent-amber:   #f59e0b;
+  --accent-red:     #ef4444;
+  --radius:         6px;
+  --sidebar-w:      320px;
 }
 
-html, body { height:100%; background:var(--uga-black); color:var(--text);
-             font-family:'Inter',sans-serif; font-size:14px; overflow:hidden; }
+html, body { height: 100%; background: var(--uga-black); color: var(--text);
+             font-family: 'Inter', sans-serif; font-size: 14px; overflow: hidden; }
 
-#shell { display:grid; grid-template-columns:var(--sidebar-w) 1fr; height:100vh; }
+/* ── Layout ──────────────────────────────────────────────────────────── */
+#shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
 
-/* Sidebar */
-#sidebar { background:var(--panel-bg); border-right:1px solid var(--panel-border);
-           display:flex; flex-direction:column; overflow-y:auto; }
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+#sidebar {
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+}
 
-#sidebar-header { background:var(--uga-red); padding:18px 20px 14px;
-                  border-bottom:2px solid var(--uga-red-dark);
-                  display:flex; align-items:center; gap:12px;
-                  position:sticky; top:0; z-index:10; }
-#sidebar-header .icon { font-size:26px; }
-#sidebar-header h1 { font-family:'DM Serif Display',serif; font-size:15px;
-                     line-height:1.2; color:#fff; }
-#sidebar-header h1 span { display:block; font-size:11px; font-family:'Inter',sans-serif;
-                           opacity:.75; font-weight:400; margin-top:2px; }
+#sidebar-header {
+  background: var(--uga-red);
+  padding: 18px 20px 14px;
+  border-bottom: 2px solid var(--uga-red-dark);
+  display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 10;
+}
+#sidebar-header .bulldog { font-size: 28px; }
+#sidebar-header h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 15px; line-height: 1.2;
+  color: #fff;
+}
+#sidebar-header h1 span { display: block; font-size: 11px; font-family: 'Inter', sans-serif;
+                           opacity: .75; font-weight: 400; margin-top: 2px; }
 
-.sidebar-section { padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.06); }
-.sidebar-section h2 { font-family:'JetBrains Mono',monospace; font-size:10px;
-                      letter-spacing:.12em; text-transform:uppercase;
-                      color:var(--uga-silver); margin-bottom:12px; opacity:.7; }
+.sidebar-section {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sidebar-section h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--uga-silver); margin-bottom: 12px; opacity: .7;
+}
 
-.field { margin-bottom:10px; }
-.field label { display:flex; justify-content:space-between; align-items:center;
-               font-size:12px; color:var(--text-muted); margin-bottom:4px; }
-.field label .val { font-family:'JetBrains Mono',monospace; font-size:11px;
-                    color:var(--uga-silver); background:var(--surface-2);
-                    padding:1px 6px; border-radius:3px; min-width:38px; text-align:right; }
-.field input[type=range] { width:100%; accent-color:var(--uga-red); cursor:pointer; height:4px; }
+.field { margin-bottom: 10px; }
+.field label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 4px;
+}
+.field label .val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--uga-silver);
+  background: var(--surface-2); padding: 1px 6px; border-radius: 3px;
+  min-width: 38px; text-align: right;
+}
+.field input[type=range] {
+  width: 100%; accent-color: var(--uga-red); cursor: pointer;
+  height: 4px;
+}
+.field input[type=number] {
+  width: 100%; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius); color: var(--text); padding: 5px 8px;
+  font-size: 13px; font-family: 'JetBrains Mono', monospace;
+}
+.field input[type=number]:focus { outline: none; border-color: var(--uga-red); }
 
-#run-btn { margin:14px 18px 18px; width:calc(100% - 36px);
-           background:var(--uga-red); color:#fff; border:none;
-           border-radius:var(--radius); padding:11px; font-size:13px;
-           font-weight:600; cursor:pointer; letter-spacing:.04em;
-           transition:background .2s, box-shadow .2s; }
-#run-btn:hover { background:var(--uga-red-dark); box-shadow:0 0 18px var(--uga-red-glow); }
-#run-btn:disabled { opacity:.5; cursor:not-allowed; }
+#run-btn {
+  margin: 14px 18px 18px;
+  width: calc(100% - 36px);
+  background: var(--uga-red);
+  color: #fff; border: none; border-radius: var(--radius);
+  padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .2s, box-shadow .2s;
+  letter-spacing: .04em;
+}
+#run-btn:hover { background: var(--uga-red-dark); box-shadow: 0 0 18px var(--uga-red-glow); }
+#run-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-#log-box { font-family:'JetBrains Mono',monospace; font-size:11px; color:#6B7280;
-           background:#0A0A0A; border-radius:var(--radius); padding:10px;
-           margin:0 18px 16px; min-height:72px; max-height:130px; overflow-y:auto;
-           border:1px solid rgba(255,255,255,0.05); white-space:pre-wrap; line-height:1.6; }
-#log-box .ok  { color:var(--green); }
-#log-box .err { color:var(--red); }
+#log-box {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: #6B7280; background: #0A0A0A; border-radius: var(--radius);
+  padding: 10px; margin: 0 18px 16px;
+  min-height: 72px; max-height: 130px; overflow-y: auto;
+  border: 1px solid rgba(255,255,255,0.05);
+  white-space: pre-wrap; line-height: 1.6;
+}
+#log-box .ok  { color: var(--accent-green); }
+#log-box .err { color: var(--accent-red); }
 
-/* Main */
-#main { display:flex; flex-direction:column; overflow:hidden; }
+/* ── Main panel ──────────────────────────────────────────────────────── */
+#main {
+  display: flex; flex-direction: column; overflow: hidden;
+}
 
-#topbar { background:var(--panel-bg); border-bottom:1px solid var(--panel-border);
-          padding:0 24px; display:flex; align-items:center; flex-shrink:0; height:48px; }
-#topbar h2 { font-family:'DM Serif Display',serif; font-size:18px;
-             color:var(--text); margin-right:auto; padding-right:24px; }
+#topbar {
+  background: var(--panel-bg); border-bottom: 1px solid var(--panel-border);
+  padding: 0 24px;
+  display: flex; align-items: center; gap: 0;
+  flex-shrink: 0; height: 48px;
+}
+#topbar h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px; color: var(--text);
+  margin-right: auto; padding-right: 24px;
+}
 
-.tab-btn { height:48px; padding:0 16px; background:none; border:none;
-           border-bottom:2px solid transparent; color:var(--text-muted);
-           font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px;
-           transition:color .15s, border-color .15s; white-space:nowrap; }
-.tab-btn:hover  { color:var(--text); }
-.tab-btn.active { color:var(--uga-red); border-bottom-color:var(--uga-red); }
+.tab-btn {
+  height: 48px; padding: 0 16px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-muted); font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.tab-btn:hover    { color: var(--text); }
+.tab-btn.active   { color: var(--uga-red); border-bottom-color: var(--uga-red); }
 
-#opt-selector { margin-left:auto; display:flex; align-items:center; gap:8px; }
-#opt-selector label { font-size:12px; color:var(--text-muted); }
-#opt-select { background:var(--surface-2); border:1px solid rgba(255,255,255,.1);
-              color:var(--text); border-radius:var(--radius); padding:4px 8px;
-              font-size:12px; cursor:pointer; }
-#export-btn { background:var(--surface-2); border:1px solid rgba(255,255,255,.12);
-              color:var(--text-muted); border-radius:var(--radius); padding:4px 10px;
-              font-size:12px; cursor:pointer; transition:color .15s, border-color .15s; }
-#export-btn:hover { color:var(--text); border-color:var(--uga-red); }
+#opt-selector {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+}
+#opt-selector label { font-size: 12px; color: var(--text-muted); }
+#opt-select {
+  background: var(--surface-2); border: 1px solid rgba(255,255,255,.1);
+  color: var(--text); border-radius: var(--radius);
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+}
+#export-btn {
+  margin-left: 8px;
+  background: var(--surface-2); border: 1px solid rgba(255,255,255,.12);
+  color: var(--text-muted); border-radius: var(--radius);
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+#export-btn:hover { color: var(--text); border-color: var(--uga-red); }
 
-#content-area { flex:1; overflow-y:auto; padding:20px 24px; }
+#content-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
 
-.pane { display:none; }
-.pane.active { display:block; }
+/* ── Tab panes ───────────────────────────────────────────────────────── */
+.pane { display: none; }
+.pane.active { display: block; }
 
-/* Stat cards */
-.stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
-             gap:12px; margin-bottom:20px; }
-.stat-card { background:var(--surface); border:1px solid rgba(255,255,255,.07);
-             border-radius:var(--radius); padding:14px 16px; }
-.stat-card .lbl { font-size:11px; color:var(--text-muted); margin-bottom:4px; }
-.stat-card .num { font-family:'DM Serif Display',serif; font-size:28px; color:var(--text); }
-.stat-card .num.ok   { color:var(--green); }
-.stat-card .num.warn { color:var(--amber); }
-.stat-card .num.bad  { color:var(--red); }
+/* ── Stat cards ──────────────────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--surface); border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--radius); padding: 14px 16px;
+}
+.stat-card .lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.stat-card .val {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px; color: var(--text);
+}
+.stat-card .val.ok   { color: var(--accent-green); }
+.stat-card .val.warn { color: var(--accent-amber); }
+.stat-card .val.bad  { color: var(--accent-red); }
+.stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-/* Tables */
-.data-table { width:100%; border-collapse:collapse; font-size:12.5px; }
-.data-table th { text-align:left; padding:7px 10px; font-family:'JetBrains Mono',monospace;
-                 font-size:10px; letter-spacing:.08em; text-transform:uppercase;
-                 color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,.08); }
-.data-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.04); }
-.data-table tr:last-child td { border-bottom:none; }
-.data-table tr:hover td { background:rgba(255,255,255,.03); }
+/* ── Tables ──────────────────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.data-table th {
+  text-align: left; padding: 7px 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.data-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.badge {
+  display: inline-block; padding: 2px 7px; border-radius: 20px;
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+}
+.badge-ok   { background: rgba(34,197,94,.15);  color: #4ade80; }
+.badge-warn { background: rgba(245,158,11,.15); color: #fbbf24; }
+.badge-bad  { background: rgba(239,68,68,.15);  color: #f87171; }
+.badge-moved { background: rgba(186,12,47,.20);  color: #ff6680; }
 
-.badge { display:inline-block; padding:2px 7px; border-radius:20px;
-         font-size:10px; font-weight:600; letter-spacing:.04em; }
-.ok-badge   { background:rgba(34,197,94,.15);  color:#4ade80; }
-.warn-badge { background:rgba(245,158,11,.15); color:#fbbf24; }
-.bad-badge  { background:rgba(239,68,68,.15);  color:#f87171; }
+/* ── Block distribution bar ──────────────────────────────────────────── */
+.blk-bar-wrap { margin-bottom: 18px; }
+.blk-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.blk-lbl { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+           color: var(--text-muted); width: 80px; flex-shrink: 0; }
+.blk-track { flex: 1; background: var(--surface-2); border-radius: 3px; height: 18px; position: relative; overflow: visible; }
+.blk-fill { height: 100%; border-radius: 3px; background: var(--uga-red);
+            transition: width .5s ease; position: relative; }
+.blk-fill.over { background: #ef4444; }
+.blk-cnt { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+           color: var(--text-muted); width: 40px; text-align: right; }
 
-/* Block bars */
-.blk-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
-.blk-lbl { font-family:'JetBrains Mono',monospace; font-size:11px;
-           color:var(--text-muted); width:80px; flex-shrink:0; }
-.blk-track { flex:1; background:var(--surface-2); border-radius:3px; height:18px; }
-.blk-fill  { height:100%; border-radius:3px; background:var(--uga-red); transition:width .5s; }
-.blk-fill.over { background:#ef4444; }
-.blk-cnt { font-family:'JetBrains Mono',monospace; font-size:11px;
-           color:var(--text-muted); width:40px; text-align:right; }
-
+/* ── Calendar ────────────────────────────────────────────────────────── */
 /* Calendar */
 #cal-wrap { background:var(--surface); border:1px solid rgba(255,255,255,.07);
             border-radius:var(--radius); overflow:hidden; }
@@ -166,132 +241,177 @@ html, body { height:100%; background:var(--uga-black); color:var(--text);
                        overflow:hidden; text-overflow:ellipsis; }
 .cal-event.moved { outline:1.5px dashed rgba(186,12,47,.6); }
 
-/* Dead gap chips */
-.gap-chip { display:inline-flex; align-items:center; gap:6px;
-            background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.25);
-            border-radius:4px; padding:4px 10px; margin:3px; font-size:11.5px; }
-.gap-chip .arrow { color:var(--amber); }
-.gap-chip .gcnt  { font-family:'JetBrains Mono',monospace; color:var(--amber); }
+/* ── Room dead-minutes ───────────────────────────────────────────────── */
+.util-bar-wrap { margin-bottom: 6px; }
+.util-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; cursor: pointer; }
+.util-row:hover .util-room-id { color: var(--text); }
+.util-room-id { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+                color: var(--text-muted); width: 110px; flex-shrink: 0; }
+.util-track { flex: 1; background: var(--surface-2); border-radius: 3px; height: 16px; position: relative; overflow: hidden; }
+.util-fill-used  { height: 100%; background: var(--accent-green); float: left; transition: width .5s; }
+.util-fill-dead  { height: 100%; background: var(--accent-amber); float: left; transition: width .5s; }
+.util-fill-tail  { height: 100%; background: var(--accent-red); float: left; transition: width .5s; }
+.util-pct { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: var(--text-muted); width: 42px; text-align: right; }
+.room-detail {
+  display: none; margin: 0 0 12px 120px;
+  background: var(--surface-2); border-radius: var(--radius);
+  padding: 10px 12px; font-size: 11.5px;
+}
+.room-detail.open { display: block; }
+.slot-row { display: flex; gap: 12px; align-items: baseline;
+            padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.slot-row:last-child { border-bottom: none; }
+.slot-time { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+             color: var(--text-muted); width: 100px; flex-shrink: 0; }
+.slot-course { color: var(--text); font-weight: 500; flex: 1; }
+.slot-waste { font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.slot-waste.ok   { color: var(--accent-green); }
+.slot-waste.warn { color: var(--accent-amber); }
+.slot-waste.bad  { color: var(--accent-red); }
+.util-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+.util-legend span { display: flex; align-items: center; gap: 5px; }
+.leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
-/* Placeholder */
-#placeholder { display:flex; flex-direction:column; align-items:center;
-               justify-content:center; height:100%; color:var(--text-muted);
-               gap:12px; text-align:center; padding:40px; }
-#placeholder .icon { font-size:48px; opacity:.3; }
+/* ── Placeholder ─────────────────────────────────────────────────────── */
+#placeholder {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--text-muted); gap: 12px; text-align: center;
+  padding: 40px;
+}
+#placeholder .icon { font-size: 48px; opacity: .3; }
+#placeholder p { max-width: 320px; line-height: 1.6; }
 
-/* Misc */
-.section-title { font-family:'DM Serif Display',serif; font-size:15px;
-                 color:var(--text); margin-bottom:12px; margin-top:18px; }
-.section-title:first-child { margin-top:0; }
-.card-wrap { background:var(--surface); border:1px solid rgba(255,255,255,.07);
-             border-radius:var(--radius); overflow:hidden; margin-bottom:18px; }
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
-::-webkit-scrollbar { width:6px; height:6px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
+/* ── Section title ───────────────────────────────────────────────────── */
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 15px; color: var(--text); margin-bottom: 12px; margin-top: 18px;
+}
+.section-title:first-child { margin-top: 0; }
+
+.card-wrap {
+  background: var(--surface); border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 18px;
+}
 </style>
 </head>
 <body>
 <div id="shell">
 
-<!-- SIDEBAR -->
+<!-- ══════════════════════════════════════════════════════════ SIDEBAR -->
 <aside id="sidebar">
   <div id="sidebar-header">
-    <div class="icon">🏛️</div>
+    <div class="bulldog">🏛️</div>
     <h1>Math Schedule Optimizer<span>Athena · Phase 1</span></h1>
   </div>
 
+  <!-- General -->
   <div class="sidebar-section">
     <h2>General Settings</h2>
     <div class="field">
-      <label>Solver Time (sec/option) <span class="val" id="v-solver-time">60</span></label>
+      <label>Solver Time (sec / option) <span class="val" id="v-solver-time">60</span></label>
       <input type="range" id="solver_time" min="10" max="300" step="10" value="60"
-             oninput="sv('v-solver-time',this.value)">
+             oninput="syncVal('solver_time','v-solver-time',this.value)">
     </div>
     <div class="field">
       <label>Number of Options <span class="val" id="v-num-options">3</span></label>
-      <input type="range" id="num_options" min="1" max="5" value="3"
-             oninput="sv('v-num-options',this.value)">
+      <input type="range" id="num_options" min="1" max="5" step="1" value="3"
+             oninput="syncVal('num_options','v-num-options',this.value)">
     </div>
     <div class="field">
-      <label>Block Min % <span class="val" id="v-blk-min">15%</span></label>
-      <input type="range" id="block_min_pct" min="0" max="30" value="15"
-             oninput="sv('v-blk-min',this.value+'%')">
+      <label>Block Min % <span class="val" id="v-block-min-pct">15%</span></label>
+      <input type="range" id="block_min_pct" min="0" max="30" step="1" value="15"
+             oninput="syncVal('block_min_pct','v-block-min-pct',this.value+'%')">
     </div>
     <div class="field">
-      <label>Block Max % <span class="val" id="v-blk-max">30%</span></label>
-      <input type="range" id="block_max_pct" min="20" max="60" value="30"
-             oninput="sv('v-blk-max',this.value+'%')">
+      <label>Block Max % <span class="val" id="v-block-max-pct">30%</span></label>
+      <input type="range" id="block_max_pct" min="20" max="60" step="1" value="30"
+             oninput="syncVal('block_max_pct','v-block-max-pct',this.value+'%')">
     </div>
   </div>
 
+  <!-- Soft constraint weights -->
   <div class="sidebar-section">
     <h2>Soft Constraint Weights</h2>
+    {% with sliders=defaults %}
     <div class="field">
-      <label>SC-1 Skeleton Slot Fidelity <span class="val" id="v-sc1">8</span></label>
+      <label>SC-1 Skeleton Slot Fidelity <span class="val" id="v-w-skeleton-slot">8</span></label>
       <input type="range" id="w_skeleton_slot" min="0" max="50" value="8"
-             oninput="sv('v-sc1',this.value)">
+             oninput="syncVal('w_skeleton_slot','v-w-skeleton-slot',this.value)">
     </div>
     <div class="field">
-      <label>SC-2 Building Continuity <span class="val" id="v-sc2">2</span></label>
+      <label>SC-2 Building Continuity <span class="val" id="v-w-skeleton-bldg">2</span></label>
       <input type="range" id="w_skeleton_bldg" min="0" max="30" value="2"
-             oninput="sv('v-sc2',this.value)">
+             oninput="syncVal('w_skeleton_bldg','v-w-skeleton-bldg',this.value)">
     </div>
     <div class="field">
-      <label>SC-3 Instructor Dead-Gap <span class="val" id="v-sc3">10</span></label>
+      <label>SC-3 Instructor Dead-Gap <span class="val" id="v-w-dead-gap">10</span></label>
       <input type="range" id="w_dead_gap" min="0" max="100" value="10"
-             oninput="sv('v-sc3',this.value)">
+             oninput="syncVal('w_dead_gap','v-w-dead-gap',this.value)">
     </div>
     <div class="field">
-      <label>SC-4 Under-Enrollment Penalty <span class="val" id="v-sc4">12</span></label>
+      <label>SC-4 Under-Enrollment Penalty <span class="val" id="v-w-under-enroll">12</span></label>
       <input type="range" id="w_under_enroll" min="0" max="100" value="12"
-             oninput="sv('v-sc4',this.value)">
+             oninput="syncVal('w_under_enroll','v-w-under-enroll',this.value)">
     </div>
     <div class="field">
-      <label>Under-Enroll Threshold <span class="val" id="v-uet">60%</span></label>
+      <label>Under-Enroll Threshold <span class="val" id="v-ue-thresh">60%</span></label>
       <input type="range" id="under_enroll_threshold" min="0" max="100" step="5" value="60"
-             oninput="sv('v-uet',this.value+'%')">
+             oninput="syncVal('under_enroll_threshold','v-ue-thresh',this.value+'%')">
     </div>
     <div class="field">
-      <label>SC-5 Block Over-Cap Surplus <span class="val" id="v-sc5">18</span></label>
+      <label>SC-5 Block Over-Cap Surplus <span class="val" id="v-w-block-over">18</span></label>
       <input type="range" id="w_block_over" min="0" max="100" value="18"
-             oninput="sv('v-sc5',this.value)">
+             oninput="syncVal('w_block_over','v-w-block-over',this.value)">
     </div>
     <div class="field">
-      <label>SC-6 Instructor Overload <span class="val" id="v-sc6">20</span></label>
+      <label>SC-6 Instructor Overload <span class="val" id="v-w-instr-overload">20</span></label>
       <input type="range" id="w_instr_overload" min="0" max="200" value="20"
-             oninput="sv('v-sc6',this.value)">
+             oninput="syncVal('w_instr_overload','v-w-instr-overload',this.value)">
     </div>
     <div class="field">
-      <label>Instructor Max Sections <span class="val" id="v-imax">3</span></label>
+      <label>Instructor Max Sections <span class="val" id="v-instr-max">3</span></label>
       <input type="range" id="instructor_max_sections" min="1" max="8" value="3"
-             oninput="sv('v-imax',this.value)">
+             oninput="syncVal('instructor_max_sections','v-instr-max',this.value)">
     </div>
     <div class="field">
-      <label>SC-8 Lower Level in Midday <span class="val" id="v-sc8a">5</span></label>
+      <label>SC-8 Lower Level in Midday ↑ <span class="val" id="v-w-lower-mid">5</span></label>
       <input type="range" id="w_lower_midday" min="0" max="50" value="5"
-             oninput="sv('v-sc8a',this.value)">
+             oninput="syncVal('w_lower_midday','v-w-lower-mid',this.value)">
     </div>
     <div class="field">
-      <label>SC-8 Upper Level Off-Midday <span class="val" id="v-sc8b">15</span></label>
+      <label>SC-8 Upper Level Off-Midday ↑ <span class="val" id="v-w-upper-nomid">15</span></label>
       <input type="range" id="w_upper_nonmidday" min="0" max="100" value="15"
-             oninput="sv('v-sc8b',this.value)">
+             oninput="syncVal('w_upper_nonmidday','v-w-upper-nomid',this.value)">
     </div>
+    <div class="field">
+      <label>SC-9 Room Dead-Minutes <span class="val" id="v-w-dead-min">3</span></label>
+      <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
+             oninput="syncVal('w_dead_minutes','v-w-dead-min',this.value)">
+    </div>
+    {% endwith %}
   </div>
 
   <button id="run-btn" onclick="runOptimizer()">▶ Run Optimizer</button>
+
   <div id="log-box">Ready. Configure weights and press Run.</div>
 </aside>
 
-<!-- MAIN -->
+<!-- ══════════════════════════════════════════════════════════ MAIN -->
 <main id="main">
   <div id="topbar">
     <h2>Results Viewer</h2>
-    <button class="tab-btn active" onclick="switchTab('summary',this)">📊 Summary</button>
-    <button class="tab-btn" onclick="switchTab('calendar',this)">📅 Calendar</button>
-    <button class="tab-btn" onclick="switchTab('gaps',this)">⏱ Dead Gaps</button>
-    <button class="tab-btn" onclick="switchTab('enroll',this)">📉 Enrollment</button>
-    <button class="tab-btn" onclick="switchTab('instrs',this)">👤 Instructors</button>
+    <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary',this)">📊 Summary</button>
+    <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar',this)">📅 Calendar</button>
+    <button class="tab-btn" data-tab="gaps"     onclick="switchTab('gaps',this)">⏱ Dead Minutes</button>
+    <button class="tab-btn" data-tab="enroll"   onclick="switchTab('enroll',this)">📉 Enrollment</button>
+    <button class="tab-btn" data-tab="instrs"   onclick="switchTab('instrs',this)">👤 Instructors</button>
+
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
       <select id="opt-select" onchange="renderAll()"></select>
@@ -301,94 +421,141 @@ html, body { height:100%; background:var(--uga-black); color:var(--text);
 
   <div id="content-area">
 
+    <!-- placeholder -->
     <div id="placeholder">
       <div class="icon">🎓</div>
-      <p>Configure constraint weights in the sidebar, then press <strong>Run Optimizer</strong>.</p>
+      <p>Configure constraint weights in the sidebar, then press <strong>Run Optimizer</strong> to generate schedule options.</p>
     </div>
 
-    <!-- Summary -->
+    <!-- ── Summary ─────────────────────────────────────────────── -->
     <div class="pane" id="pane-summary">
       <div class="stat-grid" id="stat-cards"></div>
       <h3 class="section-title">Time-Block Distribution</h3>
-      <div class="card-wrap" style="padding:16px" id="blk-bars"></div>
+      <div class="blk-bar-wrap card-wrap" style="padding:16px" id="blk-bars"></div>
       <h3 class="section-title">Sections per Course</h3>
-      <div class="card-wrap">
-        <table class="data-table" id="course-table">
-          <thead><tr><th>Course</th><th>Sections</th><th>Avg Fill %</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div class="card-wrap"><table class="data-table" id="course-table">
+        <thead><tr><th>Course</th><th>Sections</th><th>Avg Fill %</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
     </div>
 
-    <!-- Calendar -->
+    <!-- ── Calendar ────────────────────────────────────────────── -->
     <div class="pane" id="pane-calendar">
-      <div id="cal-wrap">
-        <table id="cal-table">
-          <thead><tr>
-            <th class="time-col"></th>
-            <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>
-          </tr></thead>
-          <tbody id="cal-body"></tbody>
-        </table>
-      </div>
+      <div id="cal-wrap"><table id="cal-table">
+        <thead><tr>
+          <th class="time-col">—</th>
+          <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>
+        </tr></thead>
+        <tbody id="cal-body"></tbody>
+      </table></div>
     </div>
 
-    <!-- Dead Gaps -->
+    <!-- ── Dead Minutes ──────────────────────────────────────────────── -->
     <div class="pane" id="pane-gaps">
-      <h3 class="section-title">Instructor Schedule Gaps</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px">
-        Empty time blocks between an instructor's first and last class of the day.
+      <h3 class="section-title">Room Dead-Minutes Analysis</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">
+        Every section occupies an <strong style="color:var(--text)">85-minute booking window</strong>
+        regardless of actual class length. Dead minutes = unused tail of that window
+        + any idle time above the required 20-min turnaround before the next booking in the same room.
+        Lower is better. Click a room to see its day-by-day breakdown.
       </p>
-      <div id="gap-chips"></div>
-      <h3 class="section-title" style="margin-top:20px">Instructor Day View</h3>
-      <div class="card-wrap">
-        <table class="data-table" id="instr-day-table">
-          <thead><tr>
-            <th>Instructor</th>
-            <th>8:15 AM</th><th>9:55 AM</th><th>11:35 AM</th>
-            <th>1:15 PM</th><th>2:55 PM</th><th>4:35 PM</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
 
-    <!-- Enrollment -->
-    <div class="pane" id="pane-enroll">
-      <h3 class="section-title">Under-Enrolled Sections</h3>
-      <div class="card-wrap">
-        <table class="data-table" id="enroll-table">
-          <thead><tr>
-            <th>CRN</th><th>Course</th><th>Instructor</th>
-            <th>Fill %</th><th>Expected</th><th>Capacity</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Instructors -->
-    <div class="pane" id="pane-instrs">
-      <h3 class="section-title">Instructor Schedule</h3>
-      <div class="card-wrap">
-        <table class="data-table" id="instrs-table">
-          <thead><tr><th>Instructor</th><th>Sections</th><th>Assignments</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
+      <!-- Constraint notice -->
+<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="background:rgba(186,12,47,.12);border:1px solid rgba(186,12,47,.3);border-radius:var(--radius);padding:8px 12px;font-size:11.5px;flex:1;min-width:220px">
+    <span style="color:var(--uga-red);font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;font-size:10px">HC-7 · HARD CONSTRAINT</span><br>
+    <span style="color:var(--text)">Uniform block across all meeting days.</span>
+    <span style="color:var(--text-muted)"> A section's time block is identical on every day it meets
+    (MWF or TR all start at the same assigned block).</span>
   </div>
-</main>
+  <div style="background:rgba(186,12,47,.12);border:1px solid rgba(186,12,47,.3);border-radius:var(--radius);padding:8px 12px;font-size:11.5px;flex:1;min-width:220px">
+    <span style="color:var(--uga-red);font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;font-size:10px">SC-9 · SOFT CONSTRAINT</span><br>
+    <span style="color:var(--text)">Room dead-minutes are penalized, but not enforced as a hard constraint.</span>
+    <span style="color:var(--text-muted)"> Gaps &gt; 20 min between bookings in the same room are discouraged, but allowed if needed for feasibility.</span>
+  </div>
 </div>
 
+      <div class="util-legend">
+        <span><span class="leg-dot" style="background:var(--accent-green)"></span>Active class time</span>
+        <span><span class="leg-dot" style="background:var(--accent-amber)"></span>Tail waste (85-min window unused)</span>
+        <span><span class="leg-dot" style="background:var(--accent-red)"></span>Gap waste (&gt;20 min idle between sections)</span>
+      </div>
+
+      <!-- summary stat row -->
+      <div class="stat-grid" style="margin-bottom:18px" id="dead-min-cards"></div>
+
+      <!-- per-room bars -->
+      <h3 class="section-title">Per-Room Breakdown</h3>
+      <div class="card-wrap" style="padding:16px 18px" id="room-util-bars"></div>
+    </div>
+
+    <!-- ── Enrollment ─────────────────────────────────────────────── -->
+    <div class="pane" id="pane-enroll">
+      <h3 class="section-title">Under-Enrolled Sections</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px">
+        Sections whose expected fill rate falls below the configured threshold.
+      </p>
+      <div class="card-wrap" id="enroll-wrap">
+        <table class="data-table" id="enroll-table">
+          <thead><tr><th>CRN</th><th>Course</th><th>Instructor</th><th>Fill %</th><th>Expected</th><th>Capacity</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Instructors ─────────────────────────────────────────────── -->
+    <div class="pane" id="pane-instrs">
+      <h3 class="section-title">Instructor Schedule</h3>
+      <div class="card-wrap" id="instrs-wrap">
+        <table class="data-table" id="instrs-table">
+          <thead><tr><th>Instructor</th><th>Sections</th><th>Time Blocks</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- content-area -->
+</main>
+</div><!-- shell -->
+
 <script>
-let _results = [], _activeOpt = 0, _poll = null;
-const DAYS = ["M","T","W","R","F"];
-const PX_PER_MIN = 48/60, DAY_START = 480, DAY_END = 1080;
+/* ── State ──────────────────────────────────────────────────────────── */
+let _results   = [];   // array of {label, score, stats}
+let _activeOpt = 0;
+let _polling   = null;
 
-function sv(id, val) { document.getElementById(id).textContent = val; }
+const DAYS    = ["M","T","W","R","F"];
+const DAY_LBL = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
+const DAY_START = 8*60, DAY_END = 18*60, PX_PER_MIN = 48/60;
 
+/* ── Slider sync ────────────────────────────────────────────────────── */
+function syncVal(id, labelId, v) {
+  document.getElementById(labelId).textContent = v;
+}
+
+/* ── Collect weights from DOM ───────────────────────────────────────── */
+function collectWeights() {
+  const get = id => parseFloat(document.getElementById(id).value);
+  return {
+    solver_time:              get("solver_time"),
+    num_options:              get("num_options"),
+    w_skeleton_slot:          get("w_skeleton_slot"),
+    w_skeleton_bldg:          get("w_skeleton_bldg"),
+    w_dead_gap:               get("w_dead_gap"),
+    under_enroll_threshold:   get("under_enroll_threshold") / 100,
+    w_under_enroll:           get("w_under_enroll"),
+    w_block_over:             get("w_block_over"),
+    instructor_max_sections:  get("instructor_max_sections"),
+    w_instr_overload:         get("w_instr_overload"),
+    w_lower_midday:           get("w_lower_midday"),
+    w_upper_nonmidday:        get("w_upper_nonmidday"),
+    w_dead_minutes:           get("w_dead_minutes"),
+    block_min_pct:            get("block_min_pct") / 100,
+    block_max_pct:            get("block_max_pct") / 100,
+  };
+}
+
+/* ── Tab switching ──────────────────────────────────────────────────── */
 function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
@@ -397,62 +564,59 @@ function switchTab(name, btn) {
   if (name === 'calendar') renderCalendar();
 }
 
-function collectWeights() {
-  const g = id => parseFloat(document.getElementById(id).value);
-  return {
-    solver_time:             g('solver_time'),
-    num_options:             g('num_options'),
-    w_skeleton_slot:         g('w_skeleton_slot'),
-    w_skeleton_bldg:         g('w_skeleton_bldg'),
-    w_dead_gap:              g('w_dead_gap'),
-    under_enroll_threshold:  g('under_enroll_threshold') / 100,
-    w_under_enroll:          g('w_under_enroll'),
-    w_block_over:            g('w_block_over'),
-    instructor_max_sections: g('instructor_max_sections'),
-    w_instr_overload:        g('w_instr_overload'),
-    w_lower_midday:          g('w_lower_midday'),
-    w_upper_nonmidday:       g('w_upper_nonmidday'),
-    block_min_pct:           g('block_min_pct') / 100,
-    block_max_pct:           g('block_max_pct') / 100,
-  };
-}
-
+/* ── Run optimizer ──────────────────────────────────────────────────── */
 async function runOptimizer() {
   const btn = document.getElementById('run-btn');
   btn.disabled = true; btn.textContent = '⏳ Running…';
-  document.getElementById('log-box').textContent = '';
+  const log = document.getElementById('log-box');
+  log.textContent = '';
+
+  // hide placeholder + results
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('opt-selector').style.display = 'none';
 
+  const weights = collectWeights();
   await fetch('/run/', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({weights: collectWeights()})
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify({weights})
   });
-  _poll = setInterval(pollStatus, 1200);
+
+  _polling = setInterval(pollStatus, 1200);
 }
 
 async function pollStatus() {
-  const data = await fetch('/status/').then(r => r.json());
+  const resp = await fetch('/status/');
+  const data = await resp.json();
   const log  = document.getElementById('log-box');
+
+  // Update log
   log.innerHTML = data.log.map(l =>
     l.startsWith('✓') ? `<span class="ok">${esc(l)}</span>` :
     l.startsWith('ERROR') ? `<span class="err">${esc(l)}</span>` : esc(l)
   ).join('\n');
   log.scrollTop = log.scrollHeight;
 
-  if (data.status === 'done' || data.status === 'error') {
-    clearInterval(_poll);
+  if (data.status === 'done') {
+    clearInterval(_polling);
+    _results = data.results || [];
     const btn = document.getElementById('run-btn');
     btn.disabled = false; btn.textContent = '▶ Run Optimizer';
-    if (data.status === 'done') { _results = data.results || []; loadResults(); }
+    loadResults();
+  } else if (data.status === 'error') {
+    clearInterval(_polling);
+    const btn = document.getElementById('run-btn');
+    btn.disabled = false; btn.textContent = '▶ Run Optimizer';
   }
 }
 
+/* ── Load results into UI ───────────────────────────────────────────── */
 function loadResults() {
+  if (!_results.length) return;
   const sel = document.getElementById('opt-select');
   sel.innerHTML = _results.map((r,i) =>
-    `<option value="${i}">${r.label} (score: ${r.score})</option>`).join('');
+    `<option value="${i}">${r.label} (score: ${r.score})</option>`
+  ).join('');
   document.getElementById('opt-selector').style.display = 'flex';
   _activeOpt = 0;
   renderAll();
@@ -460,45 +624,55 @@ function loadResults() {
 
 function renderAll() {
   _activeOpt = parseInt(document.getElementById('opt-select').value);
-  const s = _results[_activeOpt]?.stats;
-  if (!s) return;
-  renderSummary(s);
+  const r = _results[_activeOpt];
+  if (!r) return;
+  renderSummary(r.stats);
   renderCalendar();
-  renderGaps(s);
-  renderEnroll(s);
-  renderInstrs(s);
+  renderGaps(r.stats);
+  renderEnroll(r.stats);
+  renderInstrs(r.stats);
 }
 
+/* ── Summary ────────────────────────────────────────────────────────── */
 function renderSummary(s) {
+  // Stat cards
   const cards = [
     {lbl:'Sections Scheduled', val:s.total, cls:''},
-    {lbl:'Penalty Score', val:s.score, cls:s.score<2000?'ok':s.score<5000?'warn':'bad'},
-    {lbl:'Moved from Skeleton', val:`${s.moved} (${s.moved_pct}%)`, cls:s.moved_pct<20?'ok':'warn'},
-    {lbl:'Building Changes', val:s.bldg_changes, cls:s.bldg_changes===0?'ok':'warn'},
-    {lbl:'Under-Enrolled', val:s.under_count, cls:s.under_count===0?'ok':s.under_count<5?'warn':'bad'},
-    {lbl:'Dead Gap Units', val:s.dead_gap_total, cls:s.dead_gap_total===0?'ok':s.dead_gap_total<5?'warn':'bad'},
+    {lbl:'Penalty Score', val:s.score, cls: s.score<2000?'ok':s.score<5000?'warn':'bad'},
+    {lbl:'Moved from Skeleton', val:`${s.moved} (${s.moved_pct}%)`, cls: s.moved_pct<20?'ok':'warn'},
+    {lbl:'Building Changes', val:s.bldg_changes, cls: s.bldg_changes===0?'ok':'warn'},
+    {lbl:'Under-Enrolled', val:s.under_count, cls: s.under_count===0?'ok':s.under_count<5?'warn':'bad'},
+    {lbl:'Dead Minutes (total)', val:s.total_dead_minutes||0, cls: (s.total_dead_minutes||0)===0?'ok':(s.total_dead_minutes||0)<500?'warn':'bad'},
   ];
   document.getElementById('stat-cards').innerHTML = cards.map(c =>
-    `<div class="stat-card"><div class="lbl">${c.lbl}</div><div class="num ${c.cls}">${c.val}</div></div>`
+    `<div class="stat-card"><div class="lbl">${c.lbl}</div><div class="val ${c.cls}">${c.val}</div></div>`
   ).join('');
 
-  const max = Math.max(...s.block_rows.map(b=>b.count), 1);
-  document.getElementById('blk-bars').innerHTML = s.block_rows.map(b =>
-    `<div class="blk-row">
+  // Block bars
+  const maxCnt = Math.max(...s.block_rows.map(b=>b.count), 1);
+  document.getElementById('blk-bars').innerHTML = s.block_rows.map(b => {
+    const pct = Math.round(b.count/maxCnt*100);
+    return `<div class="blk-row">
       <span class="blk-lbl">${b.label}</span>
-      <div class="blk-track"><div class="blk-fill ${b.over>0?'over':''}"
-           style="width:${Math.round(b.count/max*100)}%"></div></div>
+      <div class="blk-track"><div class="blk-fill ${b.over>0?'over':''}" style="width:${pct}%"></div></div>
       <span class="blk-cnt">${b.count} <small style="opacity:.5">${b.pct}%</small></span>
-      ${b.over>0 ? `<span class="badge bad-badge">+${b.over}</span>` : ''}
-    </div>`
-  ).join('');
+      ${!b.floor_ok ? '<span class="badge badge-bad">⚠ low</span>' : ''}
+      ${b.over > 0   ? `<span class="badge badge-bad">+${b.over} over</span>` : ''}
+    </div>`;
+  }).join('');
 
-  document.querySelector('#course-table tbody').innerHTML = s.course_rows.map(c =>
-    `<tr><td><strong>MATH ${c.course}</strong></td><td>${c.sections}</td>
-     <td><span class="badge ${c.avg_fill>=80?'ok-badge':c.avg_fill>=60?'warn-badge':'bad-badge'}">${c.avg_fill}%</span></td></tr>`
+  // Course table
+  const ctb = document.querySelector('#course-table tbody');
+  ctb.innerHTML = s.course_rows.map(c =>
+    `<tr>
+      <td><strong>MATH ${c.course}</strong></td>
+      <td>${c.sections}</td>
+      <td><span class="badge ${c.avg_fill>=80?'badge-ok':c.avg_fill>=60?'badge-warn':'badge-bad'}">${c.avg_fill}%</span></td>
+    </tr>`
   ).join('');
 }
 
+/* ── Calendar ───────────────────────────────────────────────────────── */
 function renderCalendar() {
   const s = _results[_activeOpt]?.stats;
   if (!s) return;
@@ -529,77 +703,149 @@ function renderCalendar() {
     cell.appendChild(div);
   });
 }
-
+/* ── Dead Minutes ────────────────────────────────────────────────────── */
 function renderGaps(s) {
-  const chips = document.getElementById('gap-chips');
-  if (!s.instr_gaps || !Object.keys(s.instr_gaps).length) {
-    chips.innerHTML = '<p style="color:var(--green);font-size:13px">✓ No dead gaps detected.</p>';
-  } else {
-    chips.innerHTML = Object.entries(s.instr_gaps).flatMap(([instr, gaps]) =>
-      gaps.map(g =>
-        `<div class="gap-chip">
-          <strong>${esc(instr.split(',')[0])}</strong>
-          <span class="arrow">•</span>
-          ${esc(g.from)} <span class="arrow">→</span> ${esc(g.to)}
-          <span class="gcnt">${g.empty} empty</span>
-        </div>`
-      )
-    ).join('');
+  const rooms = s.room_dead_list || [];
+  const totalDead   = s.total_dead_minutes || 0;
+  const totalBooked = rooms.reduce((a,r) => a + r.total_booked, 0);
+  const avgUtil     = totalBooked ? Math.round(100*(totalBooked-totalDead)/totalBooked) : 100;
+
+  // Summary cards
+  document.getElementById('dead-min-cards').innerHTML = [
+    {lbl:'Total Dead Minutes',   val: totalDead,        cls: totalDead===0?'ok':totalDead<300?'warn':'bad'},
+    {lbl:'Avg Room Utilisation', val: avgUtil+'%',       cls: avgUtil>=85?'ok':avgUtil>=70?'warn':'bad'},
+    {lbl:'Rooms with Waste',     val: rooms.filter(r=>r.total_dead>0).length,
+                                                         cls: 'warn'},
+    {lbl:'Worst Room',           val: rooms[0]?.room_id||'—', cls:''},
+  ].map(c =>
+    `<div class="stat-card"><div class="lbl">${c.lbl}</div><div class="val ${c.cls}">${c.val}</div></div>`
+  ).join('');
+
+  // Per-room bars
+  const maxDead = Math.max(...rooms.map(r=>r.total_dead), 1);
+  const container = document.getElementById('room-util-bars');
+  container.innerHTML = '';
+
+  if (!rooms.length) {
+    container.innerHTML = '<p style="color:var(--accent-green);font-size:13px;padding:8px 0">✓ No rooms have dead minutes.</p>';
+    return;
   }
 
-  const it = s.instr_table || {};
-  document.querySelector('#instr-day-table tbody').innerHTML =
-    Object.entries(it).map(([instr, sessions]) => {
-      const byBlock = Object.fromEntries(sessions.map(se => [se.block, se]));
-      return `<tr><td><strong>${esc(instr.split(',')[0])}</strong></td>` +
-        [0,1,2,3,4,5].map(b => {
-          const se = byBlock[b];
-          return se ? `<td><span class="badge ok-badge">MATH ${se.course}</span></td>` : '<td></td>';
-        }).join('') + '</tr>';
-    }).join('');
+  rooms.forEach(room => {
+    const booked   = room.total_booked || 1;
+    const dead     = room.total_dead;
+    // For the stacked bar: split dead into tail vs gap portions
+    // We'll compute from day detail if available, else approximate
+    let tailTotal = 0, gapTotal = 0;
+    Object.values(room.days || {}).forEach(daySlots => {
+      daySlots.forEach(sl => { tailTotal += sl.tail_waste||0; gapTotal += sl.gap_dead||0; });
+    });
+    const usedPct  = Math.round((booked-dead)/booked*100);
+    const tailPct  = Math.round(tailTotal/booked*100);
+    const gapPct   = Math.round(gapTotal/booked*100);
+    const utilCls  = usedPct>=85?'ok':usedPct>=70?'warn':'bad';
+
+    const rowId = 'util-row-' + room.room_id.replace(/[^a-z0-9]/gi,'_');
+    const detailId = 'detail-' + room.room_id.replace(/[^a-z0-9]/gi,'_');
+
+    const rowEl = document.createElement('div');
+    rowEl.className = 'util-bar-wrap';
+    rowEl.innerHTML = `
+      <div class="util-row" onclick="toggleRoomDetail('${detailId}')">
+        <span class="util-room-id">${esc(room.room_id)}</span>
+        <div class="util-track">
+          <div class="util-fill-used"  style="width:${usedPct}%"></div>
+          <div class="util-fill-tail"  style="width:${tailPct}%"></div>
+          <div class="util-fill-dead"  style="width:${gapPct}%"></div>
+        </div>
+        <span class="util-pct" style="color:var(--${utilCls==='ok'?'accent-green':utilCls==='warn'?'accent-amber':'accent-red'})">${usedPct}%</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);width:70px;text-align:right">${dead} dead min</span>
+      </div>
+      <div class="room-detail" id="${detailId}">${buildRoomDetail(room)}</div>
+    `;
+    container.appendChild(rowEl);
+  });
 }
 
+function buildRoomDetail(room) {
+  const DAY_NAMES = {M:'Monday',T:'Tuesday',W:'Wednesday',R:'Thursday',F:'Friday'};
+  const days = room.days || {};
+  if (!Object.keys(days).length) return '<p style="color:var(--text-muted)">No sections assigned.</p>';
+
+  return ['M','T','W','R','F'].filter(d => days[d]?.length).map(d => {
+    const slots = days[d];
+    const rows = slots.map(sl => {
+      const startH = Math.floor(sl.start/60); const startM = sl.start%60;
+      const endH   = Math.floor(sl.actual_end/60); const endM = sl.actual_end%60;
+      const bEndH  = Math.floor(sl.booking_end/60); const bEndM = sl.booking_end%60;
+      const fmt = (h,m) => `${h%12||12}:${String(m).padStart(2,'0')}${h<12?'am':'pm'}`;
+      const totalDead = (sl.tail_waste||0)+(sl.gap_dead||0);
+      const wasteCls  = totalDead===0?'ok':totalDead<20?'warn':'bad';
+      return `<div class="slot-row">
+        <span class="slot-time">${fmt(startH,startM)}–${fmt(endH,endM)} <span style="opacity:.5">(booked→${fmt(bEndH,bEndM)})</span></span>
+        <span class="slot-course">MATH ${sl.course} · ${esc(sl.instructor.split(',')[0])}</span>
+        <span class="slot-waste ${wasteCls}">tail:${sl.tail_waste}m gap:${sl.gap_dead}m</span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);margin-bottom:4px;letter-spacing:.06em">${DAY_NAMES[d].toUpperCase()}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function toggleRoomDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+/* ── Enrollment ─────────────────────────────────────────────────────── */
 function renderEnroll(s) {
   const tb = document.querySelector('#enroll-table tbody');
-  tb.innerHTML = !s.under_list?.length
-    ? '<tr><td colspan="6" style="color:var(--green);padding:14px">✓ No under-enrolled sections.</td></tr>'
-    : s.under_list.map(u =>
-        `<tr>
-          <td><code>${u.crn}</code></td>
-          <td>MATH ${u.course}</td>
-          <td>${esc(u.instructor)}</td>
-          <td><span class="badge bad-badge">${u.fill_pct}%</span></td>
-          <td>${u.exp}</td><td>${u.cap}</td>
-        </tr>`
-      ).join('');
+  if (!s.under_list || !s.under_list.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:var(--accent-green);padding:14px">✓ No under-enrolled sections above threshold.</td></tr>';
+    return;
+  }
+  tb.innerHTML = s.under_list.map(u =>
+    `<tr>
+      <td><code>${u.crn}</code></td>
+      <td>MATH ${u.course}</td>
+      <td>${esc(u.instructor)}</td>
+      <td><span class="badge badge-bad">${u.fill_pct}%</span></td>
+      <td>${u.exp}</td>
+      <td>${u.cap}</td>
+    </tr>`
+  ).join('');
 }
 
+/* ── Instructors ────────────────────────────────────────────────────── */
 function renderInstrs(s) {
+  const tb = document.querySelector('#instrs-table tbody');
   const it = s.instr_table || {};
-  document.querySelector('#instrs-table tbody').innerHTML =
-    Object.entries(it).sort((a,b)=>b[1].length-a[1].length).map(([instr, sessions]) =>
-      `<tr>
-        <td><strong>${esc(instr)}</strong></td>
-        <td>${sessions.length}</td>
-        <td>${sessions.map(se =>
-          `<span class="badge ok-badge" style="margin:1px">MATH ${se.course} · ${se.block_label}</span>`
-        ).join('')}</td>
-      </tr>`
-    ).join('');
+  tb.innerHTML = Object.entries(it).sort((a,b)=>b[1].length-a[1].length).map(([instr, sessions]) =>
+    `<tr>
+      <td><strong>${esc(instr)}</strong></td>
+      <td>${sessions.length}</td>
+      <td>${sessions.map(se =>
+        `<span class="badge badge-ok" style="margin:1px">MATH ${se.course} · ${se.block_label}</span>`
+      ).join('')}</td>
+    </tr>`
+  ).join('');
 }
 
-function exportCSV() { window.location = `/export/?opt=${_activeOpt}`; }
+/* ── Export ─────────────────────────────────────────────────────────── */
+function exportCSV() {
+  window.location = `/export/?opt=${_activeOpt}`;
+}
 
+/* ── Utils ──────────────────────────────────────────────────────────── */
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function getCookie(name) {
+  const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+  return m ? m.pop() : '';
 }
 </script>
 </body>
 </html>
-```
-
----
-
-### Step 3 — Drop your CSV
-```
-../../../data/Course Schedule of Classes Proof ALL ++_20260116_124500.csv   
