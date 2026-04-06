@@ -10,12 +10,12 @@ CREATE TABLE IF NOT EXISTS classroom (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     building_id INTEGER NOT NULL,
     room_number TEXT NOT NULL,
-    actual_enrollment INTEGER DEFAULT,
+    actual_enrollment INTEGER DEFAULT 0,
     maximum_enrollment INTEGER NOT NULL,
     active_learning BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (building_id) REFERENCES building(id),
-    UNIQUE(building_id, room_number),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    UNIQUE(building_id, room_number)
 );
 
 -- TIME_SLOTS
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS time_slot (
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     duration_minutes INTEGER,
-    UNIQUE(start_time, end_time),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(start_time, end_time)
 );
 
 -- MEETING_PATTERNS
@@ -76,9 +76,9 @@ CREATE TABLE IF NOT EXISTS professor_preference (
     no_back_to_back INTEGER DEFAULT 0,
     office_building_id INTEGER,
     notes TEXT,
+    created_at DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (professor_id) REFERENCES professor(id),
-    FOREIGN KEY (office_building_id) REFERENCES building(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    FOREIGN KEY (office_building_id) REFERENCES building(id)
 );
 
 -- SCHEDULE
@@ -92,13 +92,12 @@ CREATE TABLE IF NOT EXISTS schedule (
     section_number INTEGER DEFAULT 1,
     maximum_enrollment INTEGER,
     actual_enrollment INTEGER DEFAULT 0,
+    created_at DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES course(id),
     FOREIGN KEY (professor_id) REFERENCES professor(id),
     FOREIGN KEY (classroom_id) REFERENCES classroom(id),
     UNIQUE(semester, course_id, section_number),
-    UNIQUE(semester, crn),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    UNIQUE(semester, crn)
 );
 
 -- SCHEDULE_MEETING_BLOCK
@@ -107,11 +106,11 @@ CREATE TABLE IF NOT EXISTS schedule_meeting_block (
     schedule_id INTEGER NOT NULL,
     time_slot_id INTEGER NOT NULL,
     meeting_pattern_id INTEGER NOT NULL,
+    created_at DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (schedule_id) REFERENCES schedule(id),
     FOREIGN KEY (time_slot_id) REFERENCES time_slot(id),
     FOREIGN KEY (meeting_pattern_id) REFERENCES meeting_pattern(id),
-    UNIQUE(schedule_id, time_slot_id, meeting_pattern_id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    UNIQUE(schedule_id, time_slot_id, meeting_pattern_id)
 );
 
 -- CONSTRAINTS
@@ -122,10 +121,10 @@ CREATE TABLE IF NOT EXISTS constraint_record (
     involves_professor_id INTEGER,
     involves_course_id INTEGER,
     constraint_rule TEXT,
+    created_at DEFAULT CURRENT_TIMESTAMP,
     priority INTEGER DEFAULT 1,
     FOREIGN KEY (involves_professor_id) REFERENCES professor(id),
-    FOREIGN KEY (involves_course_id) REFERENCES course(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    FOREIGN KEY (involves_course_id) REFERENCES course(id)
 );
 
 INSERT OR IGNORE INTO time_slot (start_time, end_time, duration_minutes) VALUES
