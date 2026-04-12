@@ -620,6 +620,9 @@ function loadResults() {
   document.getElementById('opt-selector').style.display = 'flex';
   _activeOpt = 0;
   renderAll();
+  
+  const summary = document.querySelector('.tab-btn[data-tab="summary"]');
+  if (summary) switchTab('summary', summary);
 }
 
 function renderAll() {
