@@ -50,15 +50,49 @@ def run_optimizer(request):
         _JOB.update(status="running", log=[], results=None, error=None)
 
     try:
-        body    = json.loads(request.body)
-        weights = {**DEFAULT_WEIGHTS, **body.get("weights", {})}
-    except Exception:
-        weights = dict(DEFAULT_WEIGHTS)
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError as exc:
+        with _LOCK:
+            _JOB.update(status="error", error=f"Invalid JSON payload: {exc}")
+        return JsonResponse({"ok": False, "msg": f"Invalid JSON payload: {exc}"}, status=400)
+
+    if not isinstance(body, dict):
+        with _LOCK:
+            _JOB.update(status="error", error="Request body must be a JSON object.")
+        return JsonResponse({"ok": False, "msg": "Request body must be a JSON object."}, status=400)
+
+    user_weights = body.get("weights", {})
+    if user_weights is None:
+        user_weights = {}
+    if not isinstance(user_weights, dict):
+        with _LOCK:
+            _JOB.update(status="error", error="weights must be a JSON object.")
+        return JsonResponse({"ok": False, "msg": "weights must be a JSON object."}, status=400)
+
+    weights = {**DEFAULT_WEIGHTS, **user_weights}
 
     def _run():
         try:
-            _log("Loading CSV data...")
-            sections, rooms = load_data(settings.SCHEDULE_CSV)
+            data_source = getattr(settings, "SCHEDULE_DATA_SOURCE", "db").lower()
+            if data_source == "db":
+                _log("Loading DB data...")
+                sections, rooms = load_data(
+                    source="db",
+                    db_path=settings.DATABASES["default"]["NAME"],
+                    semester=getattr(settings, "SCHEDULE_SEMESTER", "202602"),
+                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "core"),
+                )
+            elif data_source == "csv":
+                _log("Loading CSV data...")
+                sections, rooms = load_data(
+                    source="csv",
+                    csv_path=settings.SCHEDULE_CSV,
+                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "core"),
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported SCHEDULE_DATA_SOURCE '{data_source}'. Use 'db' or 'csv'."
+                )
 
             _log(f"Loaded {len(sections)} sections, {len(rooms)} rooms.")
             _log("Starting optimization...")

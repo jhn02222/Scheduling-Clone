@@ -4,23 +4,23 @@ All constraint weights are passed in at runtime via the `weights` dict.
 
 Dead-minutes model (SC-9)
 ─────────────────────────
-Each room is booked in 85-minute windows regardless of actual class duration.
+Each room is booked in 80-minute windows regardless of actual class duration.
 The department standard is ≥20 min turnaround between consecutive bookings in
 the same room on the same day.  Any idle gap ABOVE 20 minutes is waste.
 
   dead_minutes(room, day) = Σ  max(0, gap_between_sections - 20)
 
-where gap = actual_start(next) - actual_end(prev) inside the 85-min booking.
+where gap = actual_start(next) - actual_end(prev) inside the 80-min booking.
 
 Because the CP-SAT model works in discrete blocks (not continuous time) we
 approximate: two sections assigned to the SAME room on the SAME day in
-ADJACENT blocks waste  (85 - duration_of_first)  minutes of tail-time plus
+ADJACENT blocks waste  (80 - duration_of_first)  minutes of tail-time plus
 however many minutes the next section doesn't start immediately.  For
 non-adjacent same-room/same-day pairs the entire intervening window is waste.
 
 In practice:
-  booked_window  = 85 min  (fixed institutional slot)
-  tail_waste     = 85 - section_duration_mins   (unused tail of booking)
+    booked_window  = 80 min  (fixed institutional slot)
+    tail_waste     = 80 - section_duration_mins   (unused tail of booking)
   gap_waste      = max(0, gap_between_bookings - 20)
 
 SC-9 penalises  tail_waste + gap_waste  for every (room, day) pair where
@@ -28,13 +28,14 @@ two or more sections land in the same room on the same day.
 
 Credit-hour rules (updated)
 ────────────────────────────
-3-credit: 2×85 min (TR) = 170 min  OR  3×50 min (MWF) = 150 min → range 140–175
+3-credit: 2x80 min (TR) = 160 min  OR  3x55 min (MWF) = 165 min → range 140-175
 4-credit: 2×100 min (TR) = 200 min OR  3×67 min = 201 min → range 190–230
 Both patterns satisfy the weekly-minutes band; neither is preferred over the
 other (user answered "either is fine").
 """
 
 import math
+import sqlite3
 from collections import defaultdict
 
 import pandas as pd
@@ -57,7 +58,7 @@ BLOCK_LABEL = {b[0]: b[2] for b in TIME_BLOCKS}
 BLOCK_START_MIN = {b[0]: (b[1]//100)*60 + (b[1]%100) for b in TIME_BLOCKS}
 
 # Institutional booking window (minutes) — every section occupies this slot
-BOOKING_WINDOW = 85
+BOOKING_WINDOW = 80
 # Minimum desired turnaround between back-to-back sections in the same room
 MIN_TURNAROUND = 20
 
@@ -66,7 +67,7 @@ HIST_FILL    = {1113:0.932, 2250:0.934, 2260:0.938, 2270:0.931,
                 2500:0.949, 2700:0.978, 3300:0.931}
 
 # ── Credit-hour rules (updated) ──────────────────────────────────────────────
-# 3-credit: 2×85=170 (TR) or 3×50=150 (MWF) → allow 140–175
+# 3-credit: 2x80=160 (TR) or 3x55=165 (MWF) -> allow 140-175 (historical tolerance)
 # 4-credit: 2×100=200 (TR) or 3×67=201 (MWF) → allow 190–230
 CREDIT_MINUTE_RULES   = {3: {"min": 140, "max": 175},
                           4: {"min": 190, "max": 230}}
@@ -81,6 +82,27 @@ COURSE_COLORS = {
     2700: {"face": "#34d399", "edge": "#059669"},
     3300: {"face": "#fbbf24", "edge": "#d97706"},
 }
+
+
+def course_color(course_number):
+    if course_number in COURSE_COLORS:
+        return COURSE_COLORS[course_number]
+
+    # Deterministic palette fallback for non-core courses.
+    palette = [
+        {"face": "#93c5fd", "edge": "#2563eb"},
+        {"face": "#86efac", "edge": "#16a34a"},
+        {"face": "#fcd34d", "edge": "#d97706"},
+        {"face": "#fca5a5", "edge": "#dc2626"},
+        {"face": "#c4b5fd", "edge": "#7c3aed"},
+        {"face": "#67e8f9", "edge": "#0891b2"},
+        {"face": "#f9a8d4", "edge": "#db2777"},
+        {"face": "#a7f3d0", "edge": "#059669"},
+        {"face": "#fdba74", "edge": "#ea580c"},
+        {"face": "#bae6fd", "edge": "#0284c7"},
+    ]
+    idx = abs(int(course_number)) % len(palette)
+    return palette[idx]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -102,7 +124,7 @@ def weekly_mins(begin, end, days):
 def safe_int(x, default=None):
     if pd.isna(x): return default
     try: return int(round(float(x)))
-    except: return default
+    except (TypeError, ValueError): return default
 
 def normalize_days(row):
     mapping = [("M","MONDAY_IND"),("T","TUESDAY_IND"),("W","WEDNESDAY_IND"),
@@ -114,9 +136,57 @@ def normalize_days(row):
     return "".join(out)
 
 
+def parse_time_text_to_hhmm(text_value):
+    parts = str(text_value).strip().split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid time format '{text_value}'. Expected HH:MM.")
+    hour = int(parts[0])
+    minute = int(parts[1])
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ValueError(f"Invalid time value '{text_value}'.")
+    return (hour * 100) + minute
+
+
+def pattern_days_to_letters(pattern_days):
+    raw = str(pattern_days).strip()
+    if not raw:
+        return ""
+
+    # Supports serialized index list style like "[0, 2, 4]".
+    if raw.startswith("[") and raw.endswith("]"):
+        day_map = {0: "M", 1: "T", 2: "W", 3: "R", 4: "F", 5: "S", 6: "U"}
+        items = [chunk.strip() for chunk in raw[1:-1].split(",") if chunk.strip()]
+        letters = []
+        for item in items:
+            idx = int(item)
+            if idx not in day_map:
+                raise ValueError(f"Unsupported day index '{idx}' in meeting_pattern.days")
+            letters.append(day_map[idx])
+        return "".join(letters)
+
+    filtered = [ch for ch in raw.upper() if ch in "MTWRFSU"]
+    return "".join(filtered)
+
+
+def minutes_to_hhmm(total_minutes):
+    hour = total_minutes // 60
+    minute = total_minutes % 60
+    return hour * 100 + minute
+
+
+def normalize_course_scope(course_scope):
+    scope = str(course_scope or "core").strip().lower()
+    if scope not in {"core", "all_math"}:
+        raise ValueError(
+            f"Unsupported course_scope '{course_scope}'. Expected 'core' or 'all_math'."
+        )
+    return scope
+
+
 # ── Data loading ─────────────────────────────────────────────────────────────
 
-def load_data(csv_path):
+def load_data_from_csv(csv_path, course_scope="core"):
+    scope = normalize_course_scope(course_scope)
     df = pd.read_csv(csv_path)
     for col in ["COURSE_NUMBER","ACADEMIC_PERIOD","BEGIN_TIME","END_TIME",
                 "MAXIMUM_ENROLLMENT","ACTUAL_ENROLLMENT","TOTAL_CREDITS_SECTION",
@@ -127,12 +197,16 @@ def load_data(csv_path):
         (df["SUBJECT"] == "MATH") &
         (df["ACADEMIC_PERIOD"] == 202602) &
         (df["BEGIN_TIME"].notna()) &
-        (df["END_TIME"].notna()) &
-        (df["COURSE_NUMBER"].isin(CORE_COURSES))
+        (df["END_TIME"].notna())
     ].copy()
 
+    if scope == "core":
+        sp26 = sp26[sp26["COURSE_NUMBER"].isin(CORE_COURSES)].copy()
+
     if sp26.empty:
-        raise ValueError("No Spring 2026 MATH sections found for the core courses.")
+        if scope == "core":
+            raise ValueError("No Spring 2026 MATH sections found for the core courses.")
+        raise ValueError("No Spring 2026 MATH sections found for all-course scope.")
 
     sp26["DAYS"]       = sp26.apply(normalize_days, axis=1).replace("", "MWF")
     sp26["BEGIN_INT"]  = sp26["BEGIN_TIME"].astype(int)
@@ -178,7 +252,7 @@ def load_data(csv_path):
         instr = f"{il}, {ifi}".strip(", ") or "TBA"
         skel_room = None if bldg == "NCRR" else f"{bldg}-{row['ROOM']}"
 
-        # Tail waste = unused minutes inside the 85-min booking window
+        # Tail waste = unused minutes inside the 80-min booking window
         tail_waste = max(0, BOOKING_WINDOW - dmins)
 
         sections.append({
@@ -192,10 +266,203 @@ def load_data(csv_path):
             "actual_enroll": actual, "exp_enroll": exp,
             "skel_block": safe_int(row["SKEL_BLOCK"], 0),
             "skel_room": skel_room, "skel_bldg": bldg,
-            "color": COURSE_COLORS.get(course, {"face":"#e5e7eb","edge":"#9ca3af"}),
+            "color": course_color(course),
         })
 
     return sections, rooms
+
+
+def load_data_from_db(db_path, semester, course_scope="core"):
+    scope = normalize_course_scope(course_scope)
+    if not db_path:
+        raise ValueError("DB path is required for DB-backed solver input.")
+
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+
+    try:
+        room_rows = conn.execute(
+            """
+            SELECT id, building_id, room_number, max_enrollment
+            FROM classroom
+            WHERE max_enrollment IS NOT NULL AND max_enrollment > 0
+            ORDER BY building_id, room_number
+            """
+        ).fetchall()
+
+        rooms = [
+            {
+                "id": f"{row['building_id']}-{row['room_number']}",
+                "building": str(row["building_id"]),
+                "room": str(row["room_number"]),
+                "capacity": int(row["max_enrollment"]),
+            }
+            for row in room_rows
+        ]
+
+        if not rooms:
+            raise ValueError("No classrooms found in DB with positive max_enrollment.")
+
+        if scope == "core":
+            course_filter_sql = "AND c.course_number IN ({})".format(
+                ",".join(["?"] * len(CORE_COURSES))
+            )
+            query_params = [semester, *CORE_COURSES]
+        else:
+            course_filter_sql = ""
+            query_params = [semester]
+
+        sql = f"""
+            SELECT
+                cs.id AS section_id,
+                cs.crn,
+                cs.section_number,
+                cs.maximum_enrollment,
+                cs.actual_enrollment,
+                c.course_number,
+                c.course_name,
+                c.min_credits,
+                c.max_credits,
+                p.first_name AS professor_first_name,
+                p.last_name AS professor_last_name,
+                cl.building_id AS skel_building,
+                cl.room_number AS skel_room,
+                ts.start_time,
+                ts.end_time,
+                mp.days AS pattern_days,
+                smb.class_duration_minutes
+            FROM course_section cs
+            JOIN course c
+              ON c.course_number = cs.course_number
+            LEFT JOIN schedule s
+              ON s.course_section_id = cs.id
+            LEFT JOIN schedule_meeting_block smb
+              ON smb.schedule_id = s.id
+            LEFT JOIN time_slot ts
+              ON ts.id = smb.time_slot_id
+            LEFT JOIN meeting_pattern mp
+              ON mp.id = smb.meeting_pattern_id
+            LEFT JOIN professor p
+              ON p.id = s.professor_id
+            LEFT JOIN classroom cl
+              ON cl.id = s.classroom_id
+            WHERE cs.semester = ?
+              {course_filter_sql}
+            ORDER BY c.course_number, cs.crn
+        """
+
+        rows = conn.execute(sql, query_params).fetchall()
+        if not rows:
+            if scope == "core":
+                raise ValueError(
+                    f"No course_section rows found for semester {semester} and configured core courses."
+                )
+            raise ValueError(
+                f"No MATH course_section rows found for semester {semester} in all-course scope."
+            )
+
+        missing_baseline = [
+            r for r in rows
+            if not r["start_time"] or not r["end_time"] or not r["pattern_days"]
+        ]
+        if missing_baseline:
+            sample = missing_baseline[:5]
+            sample_ids = ", ".join(str(r["crn"]) for r in sample)
+            print(
+                "WARNING: Skipping sections with incomplete baseline schedule data "
+                f"({len(missing_baseline)} rows). Sample CRNs: {sample_ids}."
+            )
+
+        sections = []
+        for i, row in enumerate(rows):
+            if not row["start_time"] or not row["end_time"] or not row["pattern_days"]:
+                continue
+
+            course = safe_int(row["course_number"])
+            if course is None:
+                continue
+
+            cap = max(safe_int(row["maximum_enrollment"], 20), 1)
+            actual = max(safe_int(row["actual_enrollment"], 0), 0)
+            exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
+
+            credits = safe_int(row["max_credits"])
+            if credits is None:
+                credits = safe_int(row["min_credits"])
+
+            days = pattern_days_to_letters(row["pattern_days"]) or "MWF"
+            begin_int = parse_time_text_to_hhmm(row["start_time"])
+            end_int_slot = parse_time_text_to_hhmm(row["end_time"])
+
+            slot_duration_mins = hhmm_to_min(end_int_slot) - hhmm_to_min(begin_int)
+            duration_mins = safe_int(row["class_duration_minutes"], slot_duration_mins)
+            weekly_minutes = duration_mins * count_days(days)
+            end_int = minutes_to_hhmm(hhmm_to_min(begin_int) + duration_mins)
+            day_count = count_days(days)
+
+            if credits in CREDIT_MINUTE_RULES:
+                mins_rule = CREDIT_MINUTE_RULES[credits]
+                if not (mins_rule["min"] <= weekly_minutes <= mins_rule["max"]):
+                    continue
+
+            if credits in CREDIT_DAYCOUNT_RULES and day_count not in CREDIT_DAYCOUNT_RULES[credits]:
+                continue
+
+            last = str(row["professor_last_name"] or "").strip()
+            first = str(row["professor_first_name"] or "").strip()
+            instructor = f"{last}, {first}".strip(", ") or "TBA"
+
+            skel_building = str(row["skel_building"] or "")
+            skel_room_value = str(row["skel_room"] or "")
+            skel_room = f"{skel_building}-{skel_room_value}" if skel_building and skel_room_value else None
+
+            tail_waste = max(0, BOOKING_WINDOW - duration_mins)
+
+            sections.append(
+                {
+                    "id": i,
+                    "db_section_id": safe_int(row["section_id"]),
+                    "crn": safe_int(row["crn"], i),
+                    "course": course,
+                    "title": str(row["course_name"]),
+                    "instructor": instructor,
+                    "days": days,
+                    "day_count": day_count,
+                    "begin_int": begin_int,
+                    "end_int": end_int,
+                    "duration_mins": duration_mins,
+                    "weekly_minutes": weekly_minutes,
+                    "tail_waste": tail_waste,
+                    "credits": credits,
+                    "capacity": cap,
+                    "actual_enroll": actual,
+                    "exp_enroll": exp,
+                    "skel_block": snap_block(begin_int),
+                    "skel_room": skel_room,
+                    "skel_bldg": skel_building,
+                    "color": course_color(course),
+                }
+            )
+
+        if not sections:
+            raise ValueError("No sections survived DB filters and credit-hour validation.")
+
+        return sections, rooms
+    finally:
+        conn.close()
+
+
+def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602", course_scope="core"):
+    source_normalized = str(source).strip().lower()
+    if source_normalized == "db":
+        return load_data_from_db(
+            db_path=db_path,
+            semester=str(semester),
+            course_scope=course_scope,
+        )
+    if source_normalized == "csv":
+        return load_data_from_csv(csv_path, course_scope=course_scope)
+    raise ValueError(f"Unsupported solver data source '{source}'. Expected 'db' or 'csv'.")
 
 
 # ── Solve ────────────────────────────────────────────────────────────────────
@@ -218,7 +485,7 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
 
     MIDDAY_BLOCKS = {1, 2, 3}
     LOWER_MAX     = 2250
-    DAYS_LIST     = ["M", "T", "W", "R", "F"]
+    ACTIVE_DAYS   = ("M", "T", "W", "R", "F")
 
     log_fn("Creating CP-SAT model...")
     model   = cp_model.CpModel()
@@ -244,14 +511,25 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             raise ValueError(f"No feasible room for CRN {s['crn']} (exp_enroll={s['exp_enroll']})")
         model.AddExactlyOne(choices)
 
-    # HC-4: room conflict
+    sec_day_map = {
+        s["id"]: set(d for d in s["days"] if d in ACTIVE_DAYS)
+        for s in sections
+    }
+
+    # HC-4: room conflict (day-aware)
     log_fn("Adding room conflict constraints...")
     for ri in range(nr):
         for b in BLOCK_IDS:
-            occ = [assign[s["id"],ri,b] for s in sections if (s["id"],ri,b) in assign]
-            if len(occ) > 1: model.AddAtMostOne(occ)
+            for day in ACTIVE_DAYS:
+                occ = [
+                    assign[s["id"],ri,b]
+                    for s in sections
+                    if day in sec_day_map[s["id"]] and (s["id"],ri,b) in assign
+                ]
+                if len(occ) > 1:
+                    model.AddAtMostOne(occ)
 
-    # HC-5: instructor conflict
+    # HC-5: instructor conflict (day-aware)
     log_fn("Adding instructor conflict constraints...")
     by_instr = defaultdict(list)
     for s in sections:
@@ -259,26 +537,27 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
     for instr, sids in by_instr.items():
         if len(sids) < 2: continue
         for b in BLOCK_IDS:
-            vv = [assign[sid,ri,b] for sid in sids for ri in range(nr) if (sid,ri,b) in assign]
-            if len(vv) > 1: model.AddAtMostOne(vv)
+            for day in ACTIVE_DAYS:
+                vv = [
+                    assign[sid,ri,b]
+                    for sid in sids
+                    if day in sec_day_map[sid]
+                    for ri in range(nr)
+                    if (sid,ri,b) in assign
+                ]
+                if len(vv) > 1:
+                    model.AddAtMostOne(vv)
 
-    # HC-6: Hard 20-minute room turnaround between consecutive blocks
-    # booking_end(b1) = BLOCK_START_MIN[b1] + BOOKING_WINDOW
-    # For each pair (b1, b2) where gap_min < MIN_TURNAROUND, two sections
-    # assigned to the same room on any shared meeting day is INFEASIBLE.
+    # HC-6: Hard 20-minute room turnaround between block assignments.
+    # For each pair (b1, b2), two sections cannot share a room when:
+    #   start(b2) - end_of_first_section < MIN_TURNAROUND
+    # on any shared meeting day.
     log_fn("Adding HC-6: hard 20-min room turnaround constraints...")
-    sec_day_map = {}
-    for s in sections:
-        sec_day_map[s["id"]] = set(d for d in s["days"] if d in "MTWRF")
-    
+
     hc6_count = 0
     for b1 in BLOCK_IDS:
         for b2 in BLOCK_IDS:
             if b2 <= b1: continue
-            booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
-            gap_min = BLOCK_START_MIN[b2] - booking_end_b1
-            if gap_min >= MIN_TURNAROUND: continue  # enough gap, no constraint needed
-            # This block pair is too close together in the same room
             for ri in range(nr):
                 s1_cands = [s for s in sections if (s["id"],ri,b1) in assign]
                 s2_cands = [s for s in sections if (s["id"],ri,b2) in assign]
@@ -292,7 +571,6 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                         if not shared:
                             continue
 
-                        # ✅ USE ACTUAL END TIME (not booking window)
                         end_s1 = BLOCK_START_MIN[b1] + s1["duration_mins"]
                         gap = BLOCK_START_MIN[b2] - end_s1
 
@@ -405,63 +683,60 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 if is_lower and mid:           obj.append(W_LOWER_MID   * assign[sid,ri,b])
                 elif not is_lower and not mid: obj.append(W_UPPER_NOMID * assign[sid,ri,b])
 
-    # SC-9 room dead-minutes
-    # For every pair of sections (s1, s2) that share a room on a shared meeting day,
-    # penalise idle minutes > MIN_TURNAROUND between end of s1 booking and start of s2.
-    #
-    # We only need to consider ADJACENT block pairs (b1, b2) where b2 > b1.
-    # Gap in minutes between block b1 booking end and block b2 start:
-    #   booking_end(b1) = BLOCK_START_MIN[b1] + BOOKING_WINDOW
-    #   gap_min          = BLOCK_START_MIN[b2] - booking_end(b1)
-    #   dead_min         = max(0, gap_min - MIN_TURNAROUND)
-    #
-    # If gap_min < 0 the room is double-booked (prevented by HC-4).
-    # We add dead_min * both_in_same_room_on_same_day to the objective.
+    # SC-9 room dead-minutes (day-aware).
+    # Penalise idle minutes > MIN_TURNAROUND for each room/day pair between
+    # occupied blocks according to the fixed 80-minute booking window.
     log_fn("Adding SC-9 (LIGHT) room dead-minutes penalties...")
 
-    room_used = {}
+    room_day_used = {}
     for ri in range(nr):
-        for b in BLOCK_IDS:
-            v = model.NewBoolVar(f"room_used_{ri}_{b}")
-            occ = [assign[s["id"],ri,b] for s in sections if (s["id"],ri,b) in assign]
+        for day in ACTIVE_DAYS:
+            for b in BLOCK_IDS:
+                v = model.NewBoolVar(f"room_used_{ri}_{day}_{b}")
+                occ = [
+                    assign[s["id"],ri,b]
+                    for s in sections
+                    if day in sec_day_map[s["id"]] and (s["id"],ri,b) in assign
+                ]
 
-            if occ:
-                model.AddMaxEquality(v, occ)
-            else:
-                model.Add(v == 0)
+                if occ:
+                    model.AddMaxEquality(v, occ)
+                else:
+                    model.Add(v == 0)
 
-            room_used[ri,b] = v
+                room_day_used[ri,day,b] = v
 
     sc9_terms = 0
 
     for ri in range(nr):
-        for b1 in BLOCK_IDS:
-            for b2 in BLOCK_IDS:
-                if b2 <= b1:
-                    continue
+        for day in ACTIVE_DAYS:
+            for b1 in BLOCK_IDS:
+                for b2 in BLOCK_IDS:
+                    if b2 <= b1:
+                        continue
 
-                booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
-                gap_min        = BLOCK_START_MIN[b2] - booking_end_b1
-                dead_min       = max(0, gap_min - MIN_TURNAROUND)
+                    booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
+                    gap_min        = BLOCK_START_MIN[b2] - booking_end_b1
+                    dead_min       = max(0, gap_min - MIN_TURNAROUND)
 
-                if dead_min == 0:
-                    continue
+                    if dead_min == 0:
+                        continue
 
-                both = model.NewBoolVar(f"sc9_room_{ri}_{b1}_{b2}")
+                    both = model.NewBoolVar(f"sc9_room_{ri}_{day}_{b1}_{b2}")
 
-                model.AddBoolAnd([
-                    room_used[ri,b1],
-                    room_used[ri,b2]
-                ]).OnlyEnforceIf(both)
+                    model.AddBoolAnd([
+                        room_day_used[ri,day,b1],
+                        room_day_used[ri,day,b2]
+                    ]).OnlyEnforceIf(both)
 
-                model.AddBoolOr([
-                    room_used[ri,b1].Not(),
-                    room_used[ri,b2].Not(),
-                    both
-                ])
+                    model.AddBoolOr([
+                        room_day_used[ri,day,b1].Not(),
+                        room_day_used[ri,day,b2].Not(),
+                        both
+                    ])
 
-                obj.append(W_DEAD_MIN * dead_min * both)
-                sc9_terms += 1
+                    obj.append(W_DEAD_MIN * dead_min * both)
+                    sc9_terms += 1
 
     log_fn(f"  SC-9: {sc9_terms} LIGHT room-gap terms added.")
 
@@ -543,7 +818,7 @@ def analyze(solution, sections, rooms, weights=None):
         block_rows.append({"id":b, "label":BLOCK_LABEL[b], "count":cnt,
                            "pct":pct, "over":over,
                            "floor_ok": cnt >= blk_floor,
-                           "ceil_ok":  cnt <= soft_cap + 1})
+                           "ceil_ok":  cnt <= soft_cap})
 
     course_stats = defaultdict(lambda: {"sections":0,"exp":0,"cap":0})
     for sid, asgn in sol.items():
@@ -627,7 +902,7 @@ def analyze(solution, sections, rooms, weights=None):
         rs = room_dead_summary[room_id]
 
         for i, slot in enumerate(slots):
-            # Tail waste: unused minutes inside this section's 85-min booking
+            # Tail waste: unused minutes inside this section's 80-min booking
             tail = slot["tail_waste"]
 
             # Gap waste: idle time between this booking end and next booking start

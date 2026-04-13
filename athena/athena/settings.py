@@ -33,9 +33,23 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'athena.wsgi.application'
-DATABASES = {}
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR.parent / 'scheduling.db',
+    }
+}
 STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Hard-coded CSV path for local dev — change filename if needed
+# Solver input source: "db" (SQLite tables) or "csv" (legacy file pipeline)
+SCHEDULE_DATA_SOURCE = os.getenv('SCHEDULE_DATA_SOURCE', 'db').lower()
+
+# Legacy CSV path kept for migration/comparison runs.
 SCHEDULE_CSV = BASE_DIR / "athena" / "data" / "Course Schedule of Classes Proof ALL ++_20260116_124500.csv"
+
+# Semester loaded by the DB-backed solver path.
+SCHEDULE_SEMESTER = os.getenv('SCHEDULE_SEMESTER', '202602')
+
+# Course scope for solver input: 'core' or 'all_math'.
+SCHEDULE_COURSE_SCOPE = os.getenv('SCHEDULE_COURSE_SCOPE', 'all_math').lower()

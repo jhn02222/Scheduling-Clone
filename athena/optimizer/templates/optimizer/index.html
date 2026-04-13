@@ -240,6 +240,40 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 .cal-event .ev-sub   { color:#334155; opacity:.85; white-space:nowrap;
                        overflow:hidden; text-overflow:ellipsis; }
 .cal-event.moved { outline:1.5px dashed rgba(186,12,47,.6); }
+.cal-event-group { overflow: visible; }
+.cal-event-group .ev-count {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+  padding: 0 5px;
+  border-radius: 10px;
+}
+.ev-pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 260px;
+  max-height: 190px;
+  overflow-y: auto;
+  z-index: 20;
+  background: rgba(9, 9, 11, 0.97);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+}
+.cal-event-group:hover .ev-pop { display: block; }
+.ev-pop-row {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.ev-pop-row:last-child { border-bottom: none; }
+.ev-pop-title { color: #f4f4f5; font-size: 11px; font-weight: 600; }
+.ev-pop-sub { color: #d4d4d8; font-size: 10px; line-height: 1.35; }
 
 /* ── Room dead-minutes ───────────────────────────────────────────────── */
 .util-bar-wrap { margin-bottom: 6px; }
@@ -454,7 +488,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <div class="pane" id="pane-gaps">
       <h3 class="section-title">Room Dead-Minutes Analysis</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">
-        Every section occupies an <strong style="color:var(--text)">85-minute booking window</strong>
+        Every section occupies an <strong style="color:var(--text)">80-minute booking window</strong>
         regardless of actual class length. Dead minutes = unused tail of that window
         + any idle time above the required 20-min turnaround before the next booking in the same room.
         Lower is better. Click a room to see its day-by-day breakdown.
@@ -477,7 +511,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 
       <div class="util-legend">
         <span><span class="leg-dot" style="background:var(--accent-green)"></span>Active class time</span>
-        <span><span class="leg-dot" style="background:var(--accent-amber)"></span>Tail waste (85-min window unused)</span>
+        <span><span class="leg-dot" style="background:var(--accent-amber)"></span>Tail waste (80-min window unused)</span>
         <span><span class="leg-dot" style="background:var(--accent-red)"></span>Gap waste (&gt;20 min idle between sections)</span>
       </div>
 
@@ -526,7 +560,9 @@ let _polling   = null;
 
 const DAYS    = ["M","T","W","R","F"];
 const DAY_LBL = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
-const DAY_START = 8*60, DAY_END = 18*60, PX_PER_MIN = 48/60;
+const DEFAULT_DAY_START = 8*60;
+const DEFAULT_DAY_END = 18*60;
+const PX_PER_MIN = 48/60;
 
 /* ── Slider sync ────────────────────────────────────────────────────── */
 function syncVal(id, labelId, v) {
@@ -682,7 +718,19 @@ function renderCalendar() {
   const tbody = document.getElementById('cal-body');
   tbody.innerHTML = '';
 
-  for (let m = DAY_START; m < DAY_END; m += 60) {
+  const calendar = Array.isArray(s.calendar) ? s.calendar : [];
+  const weekdayEvents = calendar.filter(ev => DAYS.includes(ev.day));
+
+  let dayStart = DEFAULT_DAY_START;
+  let dayEnd = DEFAULT_DAY_END;
+  if (weekdayEvents.length) {
+    const minStart = Math.min(...weekdayEvents.map(ev => ev.start));
+    const maxEnd = Math.max(...weekdayEvents.map(ev => ev.end));
+    dayStart = Math.min(DEFAULT_DAY_START, Math.floor(minStart / 60) * 60);
+    dayEnd = Math.max(DEFAULT_DAY_END, Math.ceil(maxEnd / 60) * 60);
+  }
+
+  for (let m = dayStart; m < dayEnd; m += 60) {
     const tr = document.createElement('tr');
     tr.className = 'hour-row';
     const h = m/60; const h12 = h%12||12; const ap = h<12?'am':'pm';
@@ -691,20 +739,65 @@ function renderCalendar() {
     tbody.appendChild(tr);
   }
 
-  s.calendar.forEach(ev => {
-    const cell = document.getElementById(`c-${ev.day}-${Math.floor(ev.start/60)*60}`);
-    if (!cell) return;
-    const topOff = (ev.start - Math.floor(ev.start/60)*60) * PX_PER_MIN;
-    const height = Math.max((ev.end - ev.start)*PX_PER_MIN - 3, 14);
-    const div = document.createElement('div');
-    div.className = 'cal-event' + (ev.moved?' moved':'');
-    div.style.cssText = `top:${topOff}px;height:${height}px;background:${ev.face};border-color:${ev.edge}`;
-    div.innerHTML = `<div class="ev-title">MATH ${ev.course}</div>
-      ${height>22?`<div class="ev-sub">${ev.room}</div>`:''}
-      ${height>36?`<div class="ev-sub">${ev.instructor.split(',')[0]}</div>`:''}`;
-    div.title = `MATH ${ev.course} — ${ev.title}\n${ev.instructor}\n${ev.room}\nCRN ${ev.crn}${ev.moved?' [MOVED]':''}`;
-    cell.appendChild(div);
+  // Group by exact day/start minute so all simultaneous classes are visible.
+  const grouped = new Map();
+  weekdayEvents.forEach(ev => {
+    const k = `${ev.day}|${ev.start}`;
+    if (!grouped.has(k)) grouped.set(k, []);
+    grouped.get(k).push(ev);
   });
+
+  [...grouped.entries()]
+    .sort((a, b) => {
+      const [dayA, startA] = a[0].split('|');
+      const [dayB, startB] = b[0].split('|');
+      if (dayA !== dayB) return DAYS.indexOf(dayA) - DAYS.indexOf(dayB);
+      return Number(startA) - Number(startB);
+    })
+    .forEach(([key, events]) => {
+      const day = key.split('|')[0];
+      const start = Number(key.split('|')[1]);
+      const hourBucket = Math.floor(start / 60) * 60;
+      const cell = document.getElementById(`c-${day}-${hourBucket}`);
+      if (!cell) return;
+
+      events.sort((a, b) => (a.course - b.course) || (a.crn - b.crn));
+      const rep = events[0];
+      const topOff = (start - hourBucket) * PX_PER_MIN;
+      const maxEnd = Math.max(...events.map(e => e.end));
+      const height = Math.max((maxEnd - start) * PX_PER_MIN - 3, 14);
+      const hasMoved = events.some(e => e.moved);
+
+      const div = document.createElement('div');
+      div.className = 'cal-event cal-event-group' + (hasMoved ? ' moved' : '');
+      div.style.top = `${topOff}px`;
+      div.style.height = `${height}px`;
+      div.style.background = rep.face || '#d1d5db';
+      div.style.borderColor = rep.edge || '#6b7280';
+
+      const instructorLast = (rep.instructor || '').split(',')[0] || 'TBA';
+      const countPill = events.length > 1 ? `<span class="ev-count">+${events.length - 1}</span>` : '';
+      const popRows = events.map(ev => {
+        const who = esc((ev.instructor || 'TBA').split(',')[0]);
+        const room = esc(ev.room || 'TBA');
+        const title = esc(ev.title || 'Untitled');
+        return `<div class="ev-pop-row">
+          <div class="ev-pop-title">MATH ${ev.course} · CRN ${ev.crn}</div>
+          <div class="ev-pop-sub">${title}</div>
+          <div class="ev-pop-sub">${who} · ${room}${ev.moved ? ' · MOVED' : ''}</div>
+        </div>`;
+      }).join('');
+
+      div.innerHTML = `<div class="ev-title">MATH ${rep.course}${countPill}</div>
+        ${height > 22 ? `<div class="ev-sub">${rep.room || 'TBA'}</div>` : ''}
+        ${height > 36 ? `<div class="ev-sub">${esc(instructorLast)}</div>` : ''}
+        ${events.length > 1 ? `<div class="ev-pop">${popRows}</div>` : ''}`;
+
+      if (events.length === 1) {
+        div.title = `MATH ${rep.course} — ${rep.title}\n${rep.instructor}\n${rep.room}\nCRN ${rep.crn}${rep.moved ? ' [MOVED]' : ''}`;
+      }
+      cell.appendChild(div);
+    });
 }
 /* ── Dead Minutes ────────────────────────────────────────────────────── */
 function renderGaps(s) {

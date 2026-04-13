@@ -1,0 +1,168 @@
+from django.db import models
+from django.utils import timezone
+
+
+class Classroom(models.Model):
+	building_id = models.IntegerField()
+	room_number = models.TextField()
+	building_name = models.TextField()
+	max_enrollment = models.IntegerField()
+
+	class Meta:
+		db_table = "classroom"
+		managed = False
+		constraints = [
+			models.UniqueConstraint(
+				fields=["building_id", "room_number"],
+				name="classroom_building_room_unique",
+			)
+		]
+
+
+class TimeSlot(models.Model):
+	start_time = models.TextField()
+	end_time = models.TextField()
+	duration_minutes = models.IntegerField()
+
+	class Meta:
+		db_table = "time_slot"
+		managed = False
+		constraints = [
+			models.UniqueConstraint(
+				fields=["start_time", "end_time"],
+				name="time_slot_start_end_unique",
+			)
+		]
+
+
+class MeetingPattern(models.Model):
+	pattern_name = models.TextField(unique=True)
+	days = models.TextField()
+	num_days = models.IntegerField(null=True, blank=True)
+
+	class Meta:
+		db_table = "meeting_pattern"
+		managed = False
+
+
+class Course(models.Model):
+	course_number = models.IntegerField(primary_key=True)
+	course_name = models.TextField()
+	min_credits = models.IntegerField(null=True, blank=True)
+	max_credits = models.IntegerField(null=True, blank=True)
+
+	class Meta:
+		db_table = "course"
+		managed = False
+
+
+class CourseSection(models.Model):
+	course = models.ForeignKey(Course, on_delete=models.CASCADE, db_column="course_number")
+	crn = models.IntegerField()
+	semester = models.TextField()
+	section_number = models.IntegerField(default=1)
+	maximum_enrollment = models.IntegerField(null=True, blank=True)
+	actual_enrollment = models.IntegerField(default=0)
+	created_at = models.DateTimeField(default=timezone.now)
+
+	class Meta:
+		db_table = "course_section"
+		managed = False
+		constraints = [
+			models.UniqueConstraint(fields=["semester", "crn"], name="course_section_sem_crn_unique"),
+			models.UniqueConstraint(
+				fields=["semester", "course", "section_number"],
+				name="course_section_sem_course_section_unique",
+			),
+		]
+
+
+class Professor(models.Model):
+	first_name = models.TextField()
+	last_name = models.TextField()
+
+	class Meta:
+		db_table = "professor"
+		managed = False
+
+
+class ProfessorPreference(models.Model):
+	professor = models.OneToOneField(Professor, on_delete=models.CASCADE, db_column="professor_id")
+	preferred_days = models.TextField(null=True, blank=True)
+	preferred_time_slots = models.TextField(null=True, blank=True)
+	avoid_time_slots = models.TextField(null=True, blank=True)
+	preferred_courses = models.TextField(null=True, blank=True)
+	avoid_courses = models.TextField(null=True, blank=True)
+	min_gap_between_classes = models.IntegerField(default=0)
+	notes = models.TextField(null=True, blank=True)
+	created_at = models.DateTimeField(default=timezone.now)
+
+	class Meta:
+		db_table = "professor_preference"
+		managed = False
+
+
+class Schedule(models.Model):
+	course_section = models.OneToOneField(CourseSection, on_delete=models.CASCADE, db_column="course_section_id")
+	professor = models.ForeignKey(
+		Professor,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		db_column="professor_id",
+	)
+	classroom = models.ForeignKey(
+		Classroom,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		db_column="classroom_id",
+	)
+	created_at = models.DateTimeField(default=timezone.now)
+
+	class Meta:
+		db_table = "schedule"
+		managed = False
+
+
+class ScheduleMeetingBlock(models.Model):
+	schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE, db_column="schedule_id")
+	time_slot = models.ForeignKey(TimeSlot, on_delete=models.CASCADE, db_column="time_slot_id")
+	meeting_pattern = models.ForeignKey(MeetingPattern, on_delete=models.CASCADE, db_column="meeting_pattern_id")
+	class_duration_minutes = models.IntegerField(null=True, blank=True)
+
+	class Meta:
+		db_table = "schedule_meeting_block"
+		managed = False
+		constraints = [
+			models.UniqueConstraint(
+				fields=["schedule", "time_slot", "meeting_pattern"],
+				name="schedule_meeting_block_unique",
+			)
+		]
+
+
+class ConstraintRecord(models.Model):
+	constraint_type = models.TextField()
+	description = models.TextField()
+	involves_professor = models.ForeignKey(
+		Professor,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		db_column="involves_professor_id",
+	)
+	involves_course = models.ForeignKey(
+		Course,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		db_column="involves_course_id",
+	)
+	constraint_rule = models.TextField(null=True, blank=True)
+	created_at = models.DateTimeField(default=timezone.now)
+	priority = models.IntegerField(default=1)
+
+	class Meta:
+		db_table = "constraint_record"
+		managed = False
