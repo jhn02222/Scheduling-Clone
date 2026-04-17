@@ -50,6 +50,3 @@ SCHEDULE_CSV = BASE_DIR / "athena" / "data" / "Course Schedule of Classes Proof 
 
 # Semester loaded by the DB-backed solver path.
 SCHEDULE_SEMESTER = os.getenv('SCHEDULE_SEMESTER', '202602')
-
-# Course scope for solver input: 'core' or 'all_math'.
-SCHEDULE_COURSE_SCOPE = os.getenv('SCHEDULE_COURSE_SCOPE', 'all_math').lower()
