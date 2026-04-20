@@ -160,6 +160,13 @@ def minutes_to_hhmm(total_minutes):
     minute = total_minutes % 60
     return hour * 100 + minute
 
+def normalize_course_scope(course_scope):
+    scope = str(course_scope or "core").strip().lower()
+    if scope not in {"core", "all_math"}:
+        raise ValueError(
+            f"Unsupported course_scope '{course_scope}'. Expected 'core' or 'all_math'."
+        )
+    return scope
 
 # ── Data loading ─────────────────────────────────────────────────────────────
 
