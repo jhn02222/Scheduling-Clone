@@ -260,8 +260,8 @@ def load_data_from_db(db_path, semester, course_scope="core"):
     room_qs = Classroom.objects.filter(max_enrollment__gt=0)
     rooms = [
         {
-            "id": f"{r.building_id}-{r.room_number}",
-            "building": str(r.building_id),
+            "id": f"{r.building_name}-{r.room_number}",
+            "building": str(r.building_name),
             "room": str(r.room_number),
             "capacity": int(r.max_enrollment),
         }
@@ -343,7 +343,7 @@ def load_data_from_db(db_path, semester, course_scope="core"):
             instructor = "TBA"
 
         classroom = schedule.classroom
-        skel_building = str(classroom.building_id) if classroom else ""
+        skel_building = str(classroom.building_name) if classroom else ""
         skel_room_val = str(classroom.room_number) if classroom else ""
         skel_room = f"{skel_building}-{skel_room_val}" if skel_building and skel_room_val else None
 
