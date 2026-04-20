@@ -367,7 +367,7 @@ def load_data_from_db(db_path, semester, course_scope="core"):
 
     return sections, rooms
 
-def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602"):
+def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602", course_scope="core"):
     source_normalized = str(source).strip().lower()
     if source_normalized == "db":
         return load_data_from_db(
