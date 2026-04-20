@@ -1,1 +1,1 @@
-web: .venv/bin/gunicorn athena.wsgi --log-file -
+web: gunicorn athena.wsgi --log-file -
