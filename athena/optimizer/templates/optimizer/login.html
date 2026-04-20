@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Athena Scheduler</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
+        input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer; }
+        .error { color: red; }
+        a { color: #2563eb; }
+    </style>
+</head>
+<body>
+    <h2>Athena Scheduler Login</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Login</button>
+    </form>
+    <p>No account? <a href="/register/">Register here</a></p>
+</body>
+</html>

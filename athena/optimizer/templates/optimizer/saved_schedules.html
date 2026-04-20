@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Saved Schedules - Athena</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background: #2563eb; color: white; }
+        a { color: #2563eb; }
+    </style>
+</head>
+<body>
+    <h2>Saved Schedules</h2>
+    <a href="/">← Back to Optimizer</a>
+    <br><br>
+    {% if schedules %}
+    <table>
+        <tr><th>Name</th><th>Semester</th><th>Score</th><th>Saved</th></tr>
+        {% for s in schedules %}
+        <tr>
+            <td>{{ s.name }}</td>
+            <td>{{ s.semester }}</td>
+            <td>{{ s.score }}</td>
+            <td>{{ s.created_at|date:"M d, Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No saved schedules yet. Run the optimizer and save a result!</p>
+    {% endif %}
+</body>
+</html>
