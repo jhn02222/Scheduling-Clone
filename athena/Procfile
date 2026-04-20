@@ -1,1 +1,1 @@
-web: gunicorn athena.wsgi --log-file -
+web: .venv/bin/gunicorn athena.wsgi --bind 0.0.0.0:$PORT --log-file -
