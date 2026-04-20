@@ -53,6 +53,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'athena.wsgi.application'
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://scheduling-clone-production.up.railway.app',
+]
+
 # ── Database ──────────────────────────────────────────────────────────────────
 # On Railway: DATABASE_URL is set automatically when you add a Postgres service.
 # Locally: falls back to your existing SQLite file.

@@ -1,6 +1,7 @@
+from django.contrib import admin
 from django.urls import path
-from . import views
-
+from django.contrib.auth import views as auth_views
+from optimizer import views
 urlpatterns = [
     path('',        views.index,         name='index'),
     path('run/',    views.run_optimizer,  name='run'),
