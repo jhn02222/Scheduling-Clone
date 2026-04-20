@@ -355,7 +355,7 @@ def load_data_from_db(db_path, semester, course_scope="core"):
         exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
 
         prof = schedule.professor
-        if prof:
+        if prof and prof.is_active:
             instructor = f"{prof.last_name}, {prof.first_name}".strip(", ") or "TBA"
         else:
             instructor = "TBA"

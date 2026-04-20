@@ -19,4 +19,5 @@ urlpatterns = [
     path('professors/<int:prof_id>/json/', views.professor_pref_json, name='professor_pref_json'),
     path('professors/<int:prof_id>/pref/', views.professor_save_pref, name='professor_save_pref'),
     path('professors/<int:prof_id>/delete/', views.professor_delete, name='professor_delete'),
+    path('professors/<int:prof_id>/toggle/', views.professor_toggle_active, name='professor_toggle'),
 ]

@@ -278,6 +278,7 @@ def professors_json(request):
             'id': p.id,
             'first_name': p.first_name,
             'last_name': p.last_name,
+            'is_active': p.is_active,
             'preference': pref_data,
         })
     return JsonResponse({'professors': data})
@@ -331,3 +332,12 @@ def professor_add_json(request):
     if first and last:
         Professor.objects.get_or_create(first_name=first, last_name=last)
     return JsonResponse({'ok': True})
+
+@login_required
+@csrf_exempt
+@require_POST
+def professor_toggle_active(request, prof_id):
+    prof = Professor.objects.get(id=prof_id)
+    prof.is_active = not prof.is_active
+    prof.save()
+    return JsonResponse({'ok': True, 'is_active': prof.is_active})

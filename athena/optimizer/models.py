@@ -90,7 +90,8 @@ class CourseSection(models.Model):
 class Professor(models.Model):
     first_name = models.TextField()
     last_name = models.TextField()
-
+    is_active = models.BooleanField(default=True)
+    
     class Meta:
         db_table = "professor"
         managed = True
