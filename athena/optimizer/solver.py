@@ -244,174 +244,128 @@ def load_data_from_csv(csv_path):
     return sections, rooms
 
 
-def load_data_from_db(db_path, semester):
-    if not db_path:
-        raise ValueError("DB path is required for DB-backed solver input.")
+def load_data_from_db(db_path, semester, course_scope="core"):
+    scope = normalize_course_scope(course_scope)
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
+    from optimizer.models import CourseSection, Classroom
 
-    try:
-        room_rows = conn.execute(
-            """
-            SELECT id, building_id, room_number, max_enrollment
-            FROM classroom
-            WHERE max_enrollment IS NOT NULL AND max_enrollment > 0
-            ORDER BY building_id, room_number
-            """
-        ).fetchall()
+    room_qs = Classroom.objects.filter(max_enrollment__gt=0)
+    rooms = [
+        {
+            "id": f"{r.building_id}-{r.room_number}",
+            "building": str(r.building_id),
+            "room": str(r.room_number),
+            "capacity": int(r.max_enrollment),
+        }
+        for r in room_qs
+    ]
 
-        rooms = [
-            {
-                "id": f"{row['building_id']}-{row['room_number']}",
-                "building": str(row["building_id"]),
-                "room": str(row["room_number"]),
-                "capacity": int(row["max_enrollment"]),
-            }
-            for row in room_rows
-        ]
+    if not rooms:
+        raise ValueError("No classrooms found with positive max_enrollment.")
 
-        if not rooms:
-            raise ValueError("No classrooms found in DB with positive max_enrollment.")
+    qs = CourseSection.objects.select_related(
+        "course",
+        "schedule",
+        "schedule__professor",
+        "schedule__classroom",
+    ).prefetch_related(
+        "schedule__schedulemeetingblock_set__time_slot",
+        "schedule__schedulemeetingblock_set__meeting_pattern",
+    ).filter(semester=semester)
 
-        course_filter_sql = ""
-        query_params = [semester]
+    if scope == "core":
+        qs = qs.filter(course__course_number__in=CORE_COURSES)
 
-        sql = f"""
-            SELECT
-                cs.id AS section_id,
-                cs.crn,
-                cs.section_number,
-                cs.maximum_enrollment,
-                cs.actual_enrollment,
-                c.course_number,
-                c.course_name,
-                c.min_credits,
-                c.max_credits,
-                p.first_name AS professor_first_name,
-                p.last_name AS professor_last_name,
-                cl.building_id AS skel_building,
-                cl.room_number AS skel_room,
-                ts.start_time,
-                ts.end_time,
-                mp.days AS pattern_days,
-                smb.class_duration_minutes
-            FROM course_section cs
-            JOIN course c
-              ON c.course_number = cs.course_number
-            LEFT JOIN schedule s
-              ON s.course_section_id = cs.id
-            LEFT JOIN schedule_meeting_block smb
-              ON smb.schedule_id = s.id
-            LEFT JOIN time_slot ts
-              ON ts.id = smb.time_slot_id
-            LEFT JOIN meeting_pattern mp
-              ON mp.id = smb.meeting_pattern_id
-            LEFT JOIN professor p
-              ON p.id = s.professor_id
-            LEFT JOIN classroom cl
-              ON cl.id = s.classroom_id
-            WHERE cs.semester = ?
-              {course_filter_sql}
-            ORDER BY c.course_number, cs.crn
-        """
+    rows = qs.all()
+    if not rows:
+        raise ValueError(f"No course sections found for semester {semester}.")
 
-        rows = conn.execute(sql, query_params).fetchall()
-        if not rows:
-            raise ValueError(
-                f"No MATH course_section rows found for semester {semester} in all-course scope."
-            )
+    sections = []
+    for i, cs in enumerate(rows):
+        course = cs.course.course_number if cs.course else None
+        if course is None:
+            continue
 
-        missing_baseline = [
-            r for r in rows
-            if not r["start_time"] or not r["end_time"] or not r["pattern_days"]
-        ]
-        if missing_baseline:
-            sample = missing_baseline[:5]
-            sample_ids = ", ".join(str(r["crn"]) for r in sample)
-            print(
-                "WARNING: Skipping sections with incomplete baseline schedule data "
-                f"({len(missing_baseline)} rows). Sample CRNs: {sample_ids}."
-            )
+        try:
+            schedule = cs.schedule
+        except Exception:
+            continue
 
-        sections = []
-        for i, row in enumerate(rows):
-            if not row["start_time"] or not row["end_time"] or not row["pattern_days"]:
+        blocks = list(schedule.schedulemeetingblock_set.all())
+        if not blocks:
+            continue
+
+        smb = blocks[0]
+        ts = smb.time_slot
+        mp = smb.meeting_pattern
+
+        if not ts or not mp:
+            continue
+
+        begin_int = parse_time_text_to_hhmm(ts.start_time)
+        end_int_slot = parse_time_text_to_hhmm(ts.end_time)
+        slot_duration_mins = hhmm_to_min(end_int_slot) - hhmm_to_min(begin_int)
+        duration_mins = smb.class_duration_minutes or slot_duration_mins
+        days = pattern_days_to_letters(mp.days) or "MWF"
+        day_count = count_days(days)
+        weekly_minutes = duration_mins * day_count
+        end_int = minutes_to_hhmm(hhmm_to_min(begin_int) + duration_mins)
+
+        credits = safe_int(cs.course.max_credits) or safe_int(cs.course.min_credits)
+
+        if credits in CREDIT_MINUTE_RULES:
+            mins_rule = CREDIT_MINUTE_RULES[credits]
+            if not (mins_rule["min"] <= weekly_minutes <= mins_rule["max"]):
                 continue
 
-            course = safe_int(row["course_number"])
-            if course is None:
-                continue
+        if credits in CREDIT_DAYCOUNT_RULES and day_count not in CREDIT_DAYCOUNT_RULES[credits]:
+            continue
 
-            cap = max(safe_int(row["maximum_enrollment"], 20), 1)
-            actual = max(safe_int(row["actual_enrollment"], 0), 0)
-            exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
+        cap = max(cs.maximum_enrollment or 20, 1)
+        actual = cs.actual_enrollment or 0
+        exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
 
-            credits = safe_int(row["max_credits"])
-            if credits is None:
-                credits = safe_int(row["min_credits"])
+        prof = schedule.professor
+        if prof:
+            instructor = f"{prof.last_name}, {prof.first_name}".strip(", ") or "TBA"
+        else:
+            instructor = "TBA"
 
-            days = pattern_days_to_letters(row["pattern_days"]) or "MWF"
-            begin_int = parse_time_text_to_hhmm(row["start_time"])
-            end_int_slot = parse_time_text_to_hhmm(row["end_time"])
+        classroom = schedule.classroom
+        skel_building = str(classroom.building_id) if classroom else ""
+        skel_room_val = str(classroom.room_number) if classroom else ""
+        skel_room = f"{skel_building}-{skel_room_val}" if skel_building and skel_room_val else None
 
-            slot_duration_mins = hhmm_to_min(end_int_slot) - hhmm_to_min(begin_int)
-            duration_mins = safe_int(row["class_duration_minutes"], slot_duration_mins)
-            weekly_minutes = duration_mins * count_days(days)
-            end_int = minutes_to_hhmm(hhmm_to_min(begin_int) + duration_mins)
-            day_count = count_days(days)
+        tail_waste = max(0, BOOKING_WINDOW - duration_mins)
 
-            if credits in CREDIT_MINUTE_RULES:
-                mins_rule = CREDIT_MINUTE_RULES[credits]
-                if not (mins_rule["min"] <= weekly_minutes <= mins_rule["max"]):
-                    continue
+        sections.append({
+            "id": i,
+            "db_section_id": cs.id,
+            "crn": cs.crn,
+            "course": course,
+            "title": cs.course.course_name,
+            "instructor": instructor,
+            "days": days,
+            "day_count": day_count,
+            "begin_int": begin_int,
+            "end_int": end_int,
+            "duration_mins": duration_mins,
+            "weekly_minutes": weekly_minutes,
+            "tail_waste": tail_waste,
+            "credits": credits,
+            "capacity": cap,
+            "actual_enroll": actual,
+            "exp_enroll": exp,
+            "skel_block": snap_block(begin_int),
+            "skel_room": skel_room,
+            "skel_bldg": skel_building,
+            "color": course_color(course),
+        })
 
-            if credits in CREDIT_DAYCOUNT_RULES and day_count not in CREDIT_DAYCOUNT_RULES[credits]:
-                continue
+    if not sections:
+        raise ValueError("No sections survived filters and credit-hour validation.")
 
-            last = str(row["professor_last_name"] or "").strip()
-            first = str(row["professor_first_name"] or "").strip()
-            instructor = f"{last}, {first}".strip(", ") or "TBA"
-
-            skel_building = str(row["skel_building"] or "")
-            skel_room_value = str(row["skel_room"] or "")
-            skel_room = f"{skel_building}-{skel_room_value}" if skel_building and skel_room_value else None
-
-            tail_waste = max(0, BOOKING_WINDOW - duration_mins)
-
-            sections.append(
-                {
-                    "id": i,
-                    "db_section_id": safe_int(row["section_id"]),
-                    "crn": safe_int(row["crn"], i),
-                    "course": course,
-                    "title": str(row["course_name"]),
-                    "instructor": instructor,
-                    "days": days,
-                    "day_count": day_count,
-                    "begin_int": begin_int,
-                    "end_int": end_int,
-                    "duration_mins": duration_mins,
-                    "weekly_minutes": weekly_minutes,
-                    "tail_waste": tail_waste,
-                    "credits": credits,
-                    "capacity": cap,
-                    "actual_enroll": actual,
-                    "exp_enroll": exp,
-                    "skel_block": snap_block(begin_int),
-                    "skel_room": skel_room,
-                    "skel_bldg": skel_building,
-                    "color": course_color(course),
-                }
-            )
-
-        if not sections:
-            raise ValueError("No sections survived DB filters and credit-hour validation.")
-
-        return sections, rooms
-    finally:
-        conn.close()
-
+    return sections, rooms
 
 def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602"):
     source_normalized = str(source).strip().lower()
