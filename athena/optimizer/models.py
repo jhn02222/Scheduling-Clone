@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-
+from django.contrib.auth.models import User
 
 class Classroom(models.Model):
 	building_id = models.IntegerField()
@@ -10,7 +10,7 @@ class Classroom(models.Model):
 
 	class Meta:
 		db_table = "classroom"
-		managed = False
+		managed = True
 		constraints = [
 			models.UniqueConstraint(
 				fields=["building_id", "room_number"],
@@ -26,7 +26,7 @@ class TimeSlot(models.Model):
 
 	class Meta:
 		db_table = "time_slot"
-		managed = False
+		managed = True
 		constraints = [
 			models.UniqueConstraint(
 				fields=["start_time", "end_time"],
@@ -42,7 +42,7 @@ class MeetingPattern(models.Model):
 
 	class Meta:
 		db_table = "meeting_pattern"
-		managed = False
+		managed = True
 
 
 class Course(models.Model):
@@ -53,7 +53,7 @@ class Course(models.Model):
 
 	class Meta:
 		db_table = "course"
-		managed = False
+		managed = True
 
 
 class CourseSection(models.Model):
@@ -67,7 +67,7 @@ class CourseSection(models.Model):
 
 	class Meta:
 		db_table = "course_section"
-		managed = False
+		managed = True
 		constraints = [
 			models.UniqueConstraint(fields=["semester", "crn"], name="course_section_sem_crn_unique"),
 			models.UniqueConstraint(
@@ -83,7 +83,7 @@ class Professor(models.Model):
 
 	class Meta:
 		db_table = "professor"
-		managed = False
+		managed = True
 
 
 class ProfessorPreference(models.Model):
@@ -99,7 +99,7 @@ class ProfessorPreference(models.Model):
 
 	class Meta:
 		db_table = "professor_preference"
-		managed = False
+		managed = True
 
 
 class Schedule(models.Model):
@@ -122,7 +122,7 @@ class Schedule(models.Model):
 
 	class Meta:
 		db_table = "schedule"
-		managed = False
+		managed = True
 
 
 class ScheduleMeetingBlock(models.Model):
@@ -133,7 +133,7 @@ class ScheduleMeetingBlock(models.Model):
 
 	class Meta:
 		db_table = "schedule_meeting_block"
-		managed = False
+		managed = True
 		constraints = [
 			models.UniqueConstraint(
 				fields=["schedule", "time_slot", "meeting_pattern"],
@@ -165,4 +165,17 @@ class ConstraintRecord(models.Model):
 
 	class Meta:
 		db_table = "constraint_record"
-		managed = False
+		managed = True
+
+class SavedSchedule(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="saved_schedules")
+    name = models.CharField(max_length=200)
+    semester = models.TextField()
+    solution_data = models.JSONField()   # stores the full sol dict
+    stats_data = models.JSONField()
+    weights_used = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    score = models.IntegerField(null=True)
+
+    class Meta:
+        ordering = ["-created_at"]
