@@ -252,57 +252,82 @@ def saved_schedules(request):
     return render(request, "optimizer/saved_schedules.html", {"schedules": schedules})
 
 @login_required
-def professors(request):
-    profs = Professor.objects.all().order_by('last_name', 'first_name')
-    prof_data = []
-    for p in profs:
-        try:
-            pref = p.preference
-        except ProfessorPreference.DoesNotExist:
-            pref = None
-        prof_data.append({'professor': p, 'preference': pref})
-    return render(request, 'optimizer/professors.html', {'prof_data': prof_data})
-
-
-@login_required
-def professor_detail(request, prof_id):
-    prof = Professor.objects.get(id=prof_id)
-    try:
-        pref = prof.preference
-    except ProfessorPreference.DoesNotExist:
-        pref = None
-
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        if action == 'save_pref':
-            if pref is None:
-                pref = ProfessorPreference(professor=prof)
-            pref.tenured           = request.POST.get('tenured', 'unknown')
-            pref.time_of_day       = request.POST.get('time_of_day', 'any')
-            pref.day_pattern       = request.POST.get('day_pattern', 'any')
-            pref.level_preference  = request.POST.get('level_preference', 'any')
-            pref.max_sections      = request.POST.get('max_sections', 'any')
-            pref.avoid_back_to_back = request.POST.get('avoid_back_to_back') == 'on'
-            pref.save()
-            return redirect('professor_detail', prof_id=prof_id)
-
-    return render(request, 'optimizer/professor_detail.html', {
-        'prof': prof, 'pref': pref
-    })
-
-
-@login_required
-@require_POST
-def professor_add(request):
-    first = request.POST.get('first_name', '').strip()
-    last  = request.POST.get('last_name', '').strip()
-    if first and last:
-        Professor.objects.get_or_create(first_name=first, last_name=last)
-    return redirect('professors')
-
-
-@login_required
 @require_POST
 def professor_delete(request, prof_id):
     Professor.objects.filter(id=prof_id).delete()
     return redirect('professors')
+
+@login_required
+def professors_json(request):
+    profs = Professor.objects.all().order_by('last_name', 'first_name')
+    data = []
+    for p in profs:
+        try:
+            pref = p.preference
+            pref_data = {
+                'tenured': pref.tenured,
+                'time_of_day': pref.time_of_day,
+                'day_pattern': pref.day_pattern,
+                'level_preference': pref.level_preference,
+                'max_sections': pref.max_sections,
+                'avoid_back_to_back': pref.avoid_back_to_back,
+            }
+        except ProfessorPreference.DoesNotExist:
+            pref_data = None
+        data.append({
+            'id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'preference': pref_data,
+        })
+    return JsonResponse({'professors': data})
+
+
+@login_required
+def professor_pref_json(request, prof_id):
+    prof = Professor.objects.get(id=prof_id)
+    try:
+        pref = prof.preference
+        pref_data = {
+            'tenured': pref.tenured,
+            'time_of_day': pref.time_of_day,
+            'day_pattern': pref.day_pattern,
+            'level_preference': pref.level_preference,
+            'max_sections': pref.max_sections,
+            'avoid_back_to_back': pref.avoid_back_to_back,
+        }
+    except ProfessorPreference.DoesNotExist:
+        pref_data = None
+    return JsonResponse({'preference': pref_data})
+
+
+@login_required
+@csrf_exempt
+@require_POST
+def professor_save_pref(request, prof_id):
+    prof = Professor.objects.get(id=prof_id)
+    body = json.loads(request.body)
+    try:
+        pref = prof.preference
+    except ProfessorPreference.DoesNotExist:
+        pref = ProfessorPreference(professor=prof)
+    pref.tenured             = body.get('tenured', 'unknown')
+    pref.time_of_day         = body.get('time_of_day', 'any')
+    pref.day_pattern         = body.get('day_pattern', 'any')
+    pref.level_preference    = body.get('level_preference', 'any')
+    pref.max_sections        = body.get('max_sections', 'any')
+    pref.avoid_back_to_back  = body.get('avoid_back_to_back', False)
+    pref.save()
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@csrf_exempt  
+@require_POST
+def professor_add_json(request):
+    body = json.loads(request.body)
+    first = body.get('first_name', '').strip()
+    last  = body.get('last_name', '').strip()
+    if first and last:
+        Professor.objects.get_or_create(first_name=first, last_name=last)
+    return JsonResponse({'ok': True})

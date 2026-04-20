@@ -452,7 +452,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <button class="tab-btn" data-tab="gaps"     onclick="switchTab('gaps',this)">⏱ Dead Minutes</button>
     <button class="tab-btn" data-tab="enroll"   onclick="switchTab('enroll',this)">📉 Enrollment</button>
     <button class="tab-btn" data-tab="instrs"   onclick="switchTab('instrs',this)">👤 Instructors</button>
-    <button class="tab-btn" data-tab="profs" onclick="window.location='/professors/'">👨‍🏫 Professors</button>
+    <button class="tab-btn" data-tab="profs"    onclick="switchTab('profs',this)">👨‍🏫 Professors</button>
     
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
@@ -556,7 +556,149 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
         </table>
       </div>
     </div>
+<!-- ── Professors ─────────────────────────────────────────────── -->
+    <div class="pane" id="pane-profs">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <h3 class="section-title" style="margin-bottom:4px">Professor Preferences</h3>
+          <p style="color:var(--text-muted);font-size:12px">
+            Preferences are soft constraints — the solver tries to honor them but may not always be able to.
+            Professors without preferences use default scoring.
+          </p>
+        </div>
+        <button onclick="showAddProfModal()" style="
+          background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);
+          padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;margin-left:16px">
+          + Add Professor
+        </button>
+      </div>
 
+      <!-- Professor list table -->
+      <div class="card-wrap" id="prof-list-wrap">
+        <table class="data-table" id="prof-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Tenure</th>
+              <th>Time Pref</th>
+              <th>Day Pref</th>
+              <th>Level Pref</th>
+              <th>Max Sections</th>
+              <th>No B2B</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="prof-tbody">
+            <tr><td colspan="8" style="color:var(--text-muted);padding:20px;text-align:center">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Edit panel (slides in below table) -->
+      <div id="prof-edit-panel" style="display:none;margin-top:16px">
+        <div class="card-wrap" style="padding:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h3 class="section-title" style="margin:0" id="prof-edit-title">Edit Preferences</h3>
+            <button onclick="closeProfEdit()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px">✕</button>
+          </div>
+          <form id="prof-pref-form" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <input type="hidden" id="pref-prof-id">
+
+            <div class="field">
+              <label style="color:var(--text-muted);font-size:12px;margin-bottom:6px;display:block">🎓 Tenure Status</label>
+              <select id="pref-tenured" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+                <option value="unknown">Unknown</option>
+                <option value="yes">Tenured</option>
+                <option value="no">Not Tenured</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label style="color:var(--text-muted);font-size:12px;margin-bottom:6px;display:block">🕐 Preferred Time of Day</label>
+              <select id="pref-time" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+                <option value="any">No Preference</option>
+                <option value="morning">Morning (8–11am)</option>
+                <option value="midday">Midday (11am–2pm)</option>
+                <option value="afternoon">Afternoon (2–6pm)</option>
+                <option value="no_early">Avoid Early Morning</option>
+                <option value="no_late">Avoid Late Afternoon</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label style="color:var(--text-muted);font-size:12px;margin-bottom:6px;display:block">📅 Preferred Meeting Days</label>
+              <select id="pref-days" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+                <option value="any">No Preference</option>
+                <option value="MWF">Mon/Wed/Fri</option>
+                <option value="TR">Tue/Thu</option>
+                <option value="MW">Mon/Wed</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label style="color:var(--text-muted);font-size:12px;margin-bottom:6px;display:block">📚 Preferred Course Level</label>
+              <select id="pref-level" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+                <option value="any">No Preference</option>
+                <option value="lower">Lower Division (1000–2000)</option>
+                <option value="upper">Upper Division (3000–4000)</option>
+                <option value="grad">Graduate (5000+)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label style="color:var(--text-muted);font-size:12px;margin-bottom:6px;display:block">📊 Max Sections Per Semester</label>
+              <select id="pref-maxsec" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+                <option value="any">No Preference</option>
+                <option value="1">1 Section</option>
+                <option value="2">2 Sections</option>
+                <option value="3">3 Sections</option>
+                <option value="4">4+ Sections</option>
+              </select>
+            </div>
+
+            <div class="field" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+              <input type="checkbox" id="pref-b2b" style="accent-color:var(--uga-red);width:16px;height:16px">
+              <label for="pref-b2b" style="color:var(--text-muted);font-size:12px;cursor:pointer">
+                ⚡ Avoid back-to-back classes
+              </label>
+            </div>
+
+            <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+              <button type="button" onclick="closeProfEdit()" style="
+                background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
+                color:var(--text-muted);border-radius:var(--radius);padding:8px 16px;
+                font-size:13px;cursor:pointer">Cancel</button>
+              <button type="button" onclick="saveProfPrefs()" style="
+                background:var(--uga-red);color:#fff;border:none;
+                border-radius:var(--radius);padding:8px 16px;
+                font-size:13px;cursor:pointer">💾 Save Preferences</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Add professor modal -->
+      <div id="add-prof-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center">
+        <div style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:24px;width:360px">
+          <h3 style="font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:16px">Add Professor</h3>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px">
+            Note: professor must be assigned to course sections in your data to affect scheduling.
+          </p>
+          <div style="margin-bottom:12px">
+            <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:4px">First Name</label>
+            <input id="new-prof-first" type="text" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+          </div>
+          <div style="margin-bottom:16px">
+            <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:4px">Last Name</label>
+            <input id="new-prof-last" type="text" style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button onclick="hideAddProfModal()" style="background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text-muted);border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Cancel</button>
+            <button onclick="addProfessor()" style="background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div><!-- content-area -->
 </main>
 </div><!-- shell -->
@@ -959,6 +1101,133 @@ function esc(s) {
 function getCookie(name) {
   const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
   return m ? m.pop() : '';
+}
+/* ── Professors ─────────────────────────────────────────────────────── */
+const TIME_LABELS = {any:'—',morning:'Morning',midday:'Midday',afternoon:'Afternoon',no_early:'No Early',no_late:'No Late'};
+const DAY_LABELS  = {any:'—',MWF:'MWF',TR:'T/Th',MW:'M/W'};
+const LVL_LABELS  = {any:'—',lower:'Lower',upper:'Upper',grad:'Grad'};
+const TEN_LABELS  = {unknown:'—',yes:'Tenured',no:'Not Tenured'};
+
+async function loadProfessors() {
+  const resp = await fetch('/professors/json/');
+  const data = await resp.json();
+  renderProfTable(data.professors);
+}
+
+function renderProfTable(profs) {
+  const tb = document.getElementById('prof-tbody');
+  if (!profs.length) {
+    tb.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);padding:20px;text-align:center">No professors found.</td></tr>';
+    return;
+  }
+  tb.innerHTML = profs.map(p => {
+    const pref = p.preference;
+    const hasPref = !!pref;
+    return `<tr>
+      <td><strong>${esc(p.last_name)}, ${esc(p.first_name)}</strong></td>
+      <td>${hasPref ? TEN_LABELS[pref.tenured]||'—' : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${hasPref ? (TIME_LABELS[pref.time_of_day]||'—') : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${hasPref ? (DAY_LABELS[pref.day_pattern]||'—') : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${hasPref ? (LVL_LABELS[pref.level_preference]||'—') : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${hasPref ? (pref.max_sections==='any'?'—':pref.max_sections) : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${hasPref && pref.avoid_back_to_back ? '<span class="badge badge-warn">Yes</span>' : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td style="white-space:nowrap">
+        <button onclick="editProf(${p.id},'${esc(p.last_name)}, ${esc(p.first_name)}')" style="
+          background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
+          color:var(--text);border-radius:var(--radius);padding:4px 10px;
+          font-size:11px;cursor:pointer;margin-right:4px">Edit</button>
+        <button onclick="deleteProf(${p.id},'${esc(p.last_name)}')" style="
+          background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);
+          color:#f87171;border-radius:var(--radius);padding:4px 10px;
+          font-size:11px;cursor:pointer">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function editProf(id, name) {
+  document.getElementById('pref-prof-id').value = id;
+  document.getElementById('prof-edit-title').textContent = `Preferences — ${name}`;
+  // Load existing prefs
+  fetch(`/professors/${id}/json/`)
+    .then(r => r.json())
+    .then(data => {
+      const p = data.preference || {};
+      document.getElementById('pref-tenured').value  = p.tenured       || 'unknown';
+      document.getElementById('pref-time').value     = p.time_of_day   || 'any';
+      document.getElementById('pref-days').value     = p.day_pattern   || 'any';
+      document.getElementById('pref-level').value    = p.level_preference || 'any';
+      document.getElementById('pref-maxsec').value   = p.max_sections  || 'any';
+      document.getElementById('pref-b2b').checked    = p.avoid_back_to_back || false;
+      document.getElementById('prof-edit-panel').style.display = 'block';
+      document.getElementById('prof-edit-panel').scrollIntoView({behavior:'smooth'});
+    });
+}
+
+function closeProfEdit() {
+  document.getElementById('prof-edit-panel').style.display = 'none';
+}
+
+async function saveProfPrefs() {
+  const id = document.getElementById('pref-prof-id').value;
+  const payload = {
+    tenured:            document.getElementById('pref-tenured').value,
+    time_of_day:        document.getElementById('pref-time').value,
+    day_pattern:        document.getElementById('pref-days').value,
+    level_preference:   document.getElementById('pref-level').value,
+    max_sections:       document.getElementById('pref-maxsec').value,
+    avoid_back_to_back: document.getElementById('pref-b2b').checked,
+  };
+  await fetch(`/professors/${id}/pref/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify(payload),
+  });
+  closeProfEdit();
+  loadProfessors();
+}
+
+async function deleteProf(id, name) {
+  if (!confirm(`Delete professor ${name}?`)) return;
+  await fetch(`/professors/${id}/delete/`, {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  });
+  loadProfessors();
+}
+
+function showAddProfModal() {
+  const m = document.getElementById('add-prof-modal');
+  m.style.display = 'flex';
+}
+function hideAddProfModal() {
+  document.getElementById('add-prof-modal').style.display = 'none';
+}
+
+async function addProfessor() {
+  const first = document.getElementById('new-prof-first').value.trim();
+  const last  = document.getElementById('new-prof-last').value.trim();
+  if (!first || !last) return;
+  await fetch('/professors/add/', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({first_name: first, last_name: last}),
+  });
+  document.getElementById('new-prof-first').value = '';
+  document.getElementById('new-prof-last').value  = '';
+  hideAddProfModal();
+  loadProfessors();
+}
+
+// Load professors when tab is switched to
+const _origSwitchTab = switchTab;
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
+  if (name === 'calendar') renderCalendar();
+  if (name === 'profs') loadProfessors();
 }
 </script>
 </body>
