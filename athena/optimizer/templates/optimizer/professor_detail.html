@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ prof.last_name }}, {{ prof.first_name }} - Preferences</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; }
+        .nav a { margin-right: 15px; color: #2563eb; text-decoration: none; }
+        .card { background: #f9f9f9; border-radius: 8px; padding: 20px; margin-top: 20px; }
+        .question { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 6px; color: #374151; }
+        select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .checkbox-row { display: flex; align-items: center; gap: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-blue { background: #2563eb; color: white; }
+        .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">← Optimizer</a>
+        <a href="/professors/">← Professors</a>
+    </div>
+
+    <h2>{{ prof.last_name }}, {{ prof.first_name }}</h2>
+    <p style="color:#6b7280">Set scheduling preferences below. All fields are optional — 
+    the solver will try to honor these as soft constraints.</p>
+
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_pref">
+
+            <div class="question">
+                <label>🎓 Tenure Status</label>
+                <select name="tenured">
+                    <option value="unknown" {% if not pref or pref.tenured == 'unknown' %}selected{% endif %}>Unknown</option>
+                    <option value="yes" {% if pref and pref.tenured == 'yes' %}selected{% endif %}>Tenured</option>
+                    <option value="no" {% if pref and pref.tenured == 'no' %}selected{% endif %}>Not Tenured</option>
+                </select>
+                <p class="hint">Tenured professors may have priority in scheduling preferences.</p>
+            </div>
+
+            <div class="question">
+                <label>�� Preferred Time of Day</label>
+                <select name="time_of_day">
+                    <option value="any" {% if not pref or pref.time_of_day == 'any' %}selected{% endif %}>No Preference</option>
+                    <option value="morning" {% if pref and pref.time_of_day == 'morning' %}selected{% endif %}>Morning (8–11am)</option>
+                    <option value="midday" {% if pref and pref.time_of_day == 'midday' %}selected{% endif %}>Midday (11am–2pm)</option>
+                    <option value="afternoon" {% if pref and pref.time_of_day == 'afternoon' %}selected{% endif %}>Afternoon (2–6pm)</option>
+                    <option value="no_early" {% if pref and pref.time_of_day == 'no_early' %}selected{% endif %}>Avoid Early Morning</option>
+                    <option value="no_late" {% if pref and pref.time_of_day == 'no_late' %}selected{% endif %}>Avoid Late Afternoon</option>
+                </select>
+            </div>
+
+            <div class="question">
+                <label>📅 Preferred Meeting Days</label>
+                <select name="day_pattern">
+                    <option value="any" {% if not pref or pref.day_pattern == 'any' %}selected{% endif %}>No Preference</option>
+                    <option value="MWF" {% if pref and pref.day_pattern == 'MWF' %}selected{% endif %}>Mon/Wed/Fri</option>
+                    <option value="TR" {% if pref and pref.day_pattern == 'TR' %}selected{% endif %}>Tue/Thu</option>
+                    <option value="MW" {% if pref and pref.day_pattern == 'MW' %}selected{% endif %}>Mon/Wed</option>
+                </select>
+            </div>
+
+            <div class="question">
+                <label>📚 Preferred Course Level</label>
+                <select name="level_preference">
+                    <option value="any" {% if not pref or pref.level_preference == 'any' %}selected{% endif %}>No Preference</option>
+                    <option value="lower" {% if pref and pref.level_preference == 'lower' %}selected{% endif %}>Lower Division (1000–2000)</option>
+                    <option value="upper" {% if pref and pref.level_preference == 'upper' %}selected{% endif %}>Upper Division (3000–4000)</option>
+                    <option value="grad" {% if pref and pref.level_preference == 'grad' %}selected{% endif %}>Graduate (5000+)</option>
+                </select>
+            </div>
+
+            <div class="question">
+                <label>📊 Max Sections Per Semester</label>
+                <select name="max_sections">
+                    <option value="any" {% if not pref or pref.max_sections == 'any' %}selected{% endif %}>No Preference</option>
+                    <option value="1" {% if pref and pref.max_sections == '1' %}selected{% endif %}>1 Section</option>
+                    <option value="2" {% if pref and pref.max_sections == '2' %}selected{% endif %}>2 Sections</option>
+                    <option value="3" {% if pref and pref.max_sections == '3' %}selected{% endif %}>3 Sections</option>
+                    <option value="4" {% if pref and pref.max_sections == '4' %}selected{% endif %}>4+ Sections</option>
+                </select>
+            </div>
+
+            <div class="question">
+                <label>⚡ Back-to-Back Classes</label>
+                <div class="checkbox-row">
+                    <input type="checkbox" name="avoid_back_to_back" id="avoid_b2b"
+                        {% if pref and pref.avoid_back_to_back %}checked{% endif %}>
+                    <label for="avoid_b2b" style="font-weight:normal">
+                        Avoid scheduling back-to-back classes
+                    </label>
+                </div>
+                <p class="hint">The solver will try to leave a gap between this professor's classes.</p>
+            </div>
+
+            <button type="submit" class="btn btn-blue">💾 Save Preferences</button>
+        </form>
+    </div>
+</body>
+</html>

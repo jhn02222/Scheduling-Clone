@@ -168,6 +168,24 @@ def normalize_course_scope(course_scope):
         )
     return scope
 
+def load_professor_preferences():
+    """Returns dict: instructor_name -> preference dict"""
+    try:
+        from optimizer.models import Professor, ProfessorPreference
+        prefs = {}
+        for pref in ProfessorPreference.objects.select_related('professor').all():
+            name = f"{pref.professor.last_name}, {pref.professor.first_name}".strip(", ")
+            prefs[name] = {
+                'time_of_day':        pref.time_of_day,
+                'day_pattern':        pref.day_pattern,
+                'level_preference':   pref.level_preference,
+                'max_sections':       pref.max_sections,
+                'avoid_back_to_back': pref.avoid_back_to_back,
+                'tenured':            pref.tenured,
+            }
+        return prefs
+    except Exception:
+        return {}
 # ── Data loading ─────────────────────────────────────────────────────────────
 
 def load_data_from_csv(csv_path):
@@ -680,6 +698,77 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
         log_fn(f"  Option {chr(65+opt_i)} score={score}")
         if chosen: model.Add(sum(chosen) <= len(chosen) - 3)
 
+    # SC-10: Professor preferences (soft constraints)
+    log_fn("Adding SC-10 professor preference penalties...")
+    prof_prefs = load_professor_preferences()
+    W_PREF = int(weights.get("w_prof_pref", 6))
+
+    MORNING_BLOCKS   = {0, 1}      # 8:15, 9:55
+    MIDDAY_BLOCKS_P  = {1, 2, 3}   # 9:55, 11:35, 1:15
+    AFTERNOON_BLOCKS = {3, 4, 5}   # 1:15, 2:55, 4:35
+    EARLY_BLOCK      = {0}         # 8:15 only
+    LATE_BLOCK       = {5}         # 4:35 only
+
+    for s in sections:
+        instr = s["instructor"]
+        if instr == "TBA" or instr not in prof_prefs:
+            continue
+
+        pref = prof_prefs[instr]
+        sid  = s["id"]
+
+        # Time of day preference
+        time_pref = pref.get("time_of_day", "any")
+        for ri in range(nr):
+            for b in BLOCK_IDS:
+                if (sid, ri, b) not in assign:
+                    continue
+                penalise = False
+                if time_pref == "morning"   and b not in MORNING_BLOCKS:   penalise = True
+                if time_pref == "midday"    and b not in MIDDAY_BLOCKS_P:  penalise = True
+                if time_pref == "afternoon" and b not in AFTERNOON_BLOCKS: penalise = True
+                if time_pref == "no_early"  and b in EARLY_BLOCK:          penalise = True
+                if time_pref == "no_late"   and b in LATE_BLOCK:           penalise = True
+                if penalise:
+                    obj.append(W_PREF * assign[sid, ri, b])
+
+        # Day pattern preference
+        day_pref = pref.get("day_pattern", "any")
+        if day_pref != "any":
+            pref_days = set(day_pref.replace("TR", "TR").replace("T", "T").replace("R", "R"))
+            if day_pref == "MWF": pref_days = {"M","W","F"}
+            elif day_pref == "TR": pref_days = {"T","R"}
+            elif day_pref == "MW": pref_days = {"M","W"}
+            section_days = set(s["days"])
+            if section_days != pref_days:
+                for ri in range(nr):
+                    for b in BLOCK_IDS:
+                        if (sid, ri, b) in assign:
+                            obj.append(W_PREF * assign[sid, ri, b])
+
+        # Level preference
+        level_pref = pref.get("level_preference", "any")
+        course_num = s["course"]
+        level_mismatch = False
+        if level_pref == "lower" and course_num >= 3000:   level_mismatch = True
+        if level_pref == "upper" and (course_num < 3000 or course_num >= 5000): level_mismatch = True
+        if level_pref == "grad"  and course_num < 5000:    level_mismatch = True
+        if level_mismatch:
+            for ri in range(nr):
+                for b in BLOCK_IDS:
+                    if (sid, ri, b) in assign:
+                        obj.append(W_PREF * assign[sid, ri, b])
+
+        # Max sections (overload penalty)
+        max_sec = pref.get("max_sections", "any")
+        if max_sec != "any":
+            instr_sections = [sx for sx in sections if sx["instructor"] == instr]
+            limit = int(max_sec)
+            if len(instr_sections) > limit:
+                obj.append(W_PREF * (len(instr_sections) - limit))
+
+    log_fn(f"  SC-10: professor preferences applied for {len(prof_prefs)} professors.")
+    
     log_fn(f"Finished: {len(solutions)} solution(s) found.")
     return solutions
 

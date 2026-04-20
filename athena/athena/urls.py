@@ -14,4 +14,8 @@ urlpatterns = [
     path("export/", views.export_csv, name="export_csv"),
     path("save/", views.save_schedule, name="save_schedule"),
     path("schedules/", views.saved_schedules, name="saved_schedules"),
+    path('professors/', views.professors, name='professors'),
+    path('professors/add/', views.professor_add, name='professor_add'),
+    path('professors/<int:prof_id>/', views.professor_detail, name='professor_detail'),
+    path('professors/<int:prof_id>/delete/', views.professor_delete, name='professor_delete'),
 ]

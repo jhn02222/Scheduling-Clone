@@ -97,24 +97,64 @@ class Professor(models.Model):
 
 
 class ProfessorPreference(models.Model):
+    TENURED_CHOICES = [('yes', 'Yes'), ('no', 'No'), ('unknown', 'Unknown')]
+    TIME_PREF_CHOICES = [
+        ('morning', 'Morning (8-11am)'),
+        ('midday', 'Midday (11am-2pm)'),
+        ('afternoon', 'Afternoon (2-6pm)'),
+        ('no_early', 'No Early Morning'),
+        ('no_late', 'No Late Afternoon'),
+        ('any', 'No Preference'),
+    ]
+    DAY_PREF_CHOICES = [
+        ('MWF', 'Mon/Wed/Fri'),
+        ('TR', 'Tue/Thu'),
+        ('MW', 'Mon/Wed'),
+        ('any', 'No Preference'),
+    ]
+    LEVEL_PREF_CHOICES = [
+        ('lower', 'Lower Division (1000-2000)'),
+        ('upper', 'Upper Division (3000-4000)'),
+        ('grad', 'Graduate (5000+)'),
+        ('any', 'No Preference'),
+    ]
+    LOAD_PREF_CHOICES = [
+        ('1', '1 Section'),
+        ('2', '2 Sections'),
+        ('3', '3 Sections'),
+        ('4', '4+ Sections'),
+        ('any', 'No Preference'),
+    ]
+
     professor = models.OneToOneField(
-        Professor,
+        Professor, 
         on_delete=models.CASCADE,
-        db_column="professor_id",
-        null=True,
-        blank=True,
+        related_name='preference', 
+        db_column='professor_id',
+        null=True,   
+        blank=True,  
     )
-    preferred_days = models.TextField(null=True, blank=True)
-    preferred_time_slots = models.TextField(null=True, blank=True)
-    avoid_time_slots = models.TextField(null=True, blank=True)
-    preferred_courses = models.TextField(null=True, blank=True)
-    avoid_courses = models.TextField(null=True, blank=True)
-    min_gap_between_classes = models.IntegerField(default=0)
-    notes = models.TextField(null=True, blank=True)
+    tenured = models.CharField(
+        max_length=10, choices=TENURED_CHOICES, default='unknown'
+    )
+    time_of_day = models.CharField(
+        max_length=20, choices=TIME_PREF_CHOICES, default='any'
+    )
+    day_pattern = models.CharField(
+        max_length=10, choices=DAY_PREF_CHOICES, default='any'
+    )
+    level_preference = models.CharField(
+        max_length=10, choices=LEVEL_PREF_CHOICES, default='any'
+    )
+    max_sections = models.CharField(
+        max_length=5, choices=LOAD_PREF_CHOICES, default='any'
+    )
+    avoid_back_to_back = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "professor_preference"
+        db_table = 'professor_preference'
         managed = True
 
 
