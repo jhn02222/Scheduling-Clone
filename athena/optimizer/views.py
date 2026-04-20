@@ -44,10 +44,9 @@ def index(request):
         "defaults": DEFAULT_WEIGHTS,
     })
 
-
+@login_required
 @csrf_exempt
 @require_POST
-@login_required
 def run_optimizer(request):
     with _LOCK:
         if _JOB["status"] == "running":
