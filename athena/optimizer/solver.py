@@ -384,11 +384,11 @@ def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602", c
         return load_data_from_db(
             db_path=db_path,
             semester=str(semester),
+            course_scope=course_scope,
         )
     if source_normalized == "csv":
         return load_data_from_csv(csv_path)
     raise ValueError(f"Unsupported solver data source '{source}'. Expected 'db' or 'csv'.")
-
 
 # ── Solve ────────────────────────────────────────────────────────────────────
 
