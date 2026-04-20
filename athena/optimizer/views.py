@@ -104,6 +104,8 @@ def run_optimizer(request):
                 )
 
             _log(f"Loaded {len(sections)} sections, {len(rooms)} rooms.")
+            courses = set(s["course"] for s in sections)
+            _log(f"Courses: {sorted(courses)}")
             _log("Starting optimization...")
             _log("Building CP-SAT model...")
 
