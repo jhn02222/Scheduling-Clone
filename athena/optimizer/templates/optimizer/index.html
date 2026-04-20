@@ -219,13 +219,13 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 /* ── Calendar ────────────────────────────────────────────────────────── */
 /* Calendar */
 #cal-wrap { background:var(--surface); border:1px solid rgba(255,255,255,.07);
-            border-radius:var(--radius); overflow:hidden; }
+            border-radius:var(--radius); overflow:visible; }
 #cal-table { width:100%; border-collapse:collapse; table-layout:fixed; }
 #cal-table th { background:var(--surface-2); padding:9px 6px; text-align:center;
                 font-size:12px; font-weight:600; color:var(--text-muted);
                 border-right:1px solid rgba(255,255,255,.06); }
 #cal-table th.time-col { width:58px; }
-#cal-table td { border-right:1px solid rgba(255,255,255,.04); padding:0; vertical-align:top; }
+#cal-table td { border-right:1px solid rgba(255,255,255,.04); padding:0; vertical-align:top; overflow:visible; }
 #cal-table td.time-col { font-family:'JetBrains Mono',monospace; font-size:10px;
                          color:var(--text-muted); text-align:right; padding-right:8px;
                          padding-top:2px; background:var(--surface-2); }
@@ -256,16 +256,18 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  width: 260px;
-  max-height: 190px;
+  width: 360px;
+  max-width: min(92vw, 420px);
+  max-height: 260px;
   overflow-y: auto;
-  z-index: 20;
+  z-index: 60;
   background: rgba(9, 9, 11, 0.97);
   border: 1px solid rgba(255,255,255,.2);
   border-radius: 6px;
   padding: 8px;
   box-shadow: 0 8px 20px rgba(0,0,0,.35);
 }
+.ev-pop-right { left: auto; right: 0; }
 .cal-event-group:hover .ev-pop { display: block; }
 .ev-pop-row {
   padding: 6px 4px;
@@ -488,10 +490,10 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <div class="pane" id="pane-gaps">
       <h3 class="section-title">Room Dead-Minutes Analysis</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">
-        Every section occupies an <strong style="color:var(--text)">80-minute booking window</strong>
-        regardless of actual class length. Dead minutes = unused tail of that window
-        + any idle time above the required 20-min turnaround before the next booking in the same room.
-        Lower is better. Click a room to see its day-by-day breakdown.
+        Dead minutes are computed per active room/day by scanning each universal
+        <strong style="color:var(--text)">80-minute block</strong> and counting minutes the room is not used.
+        This includes unused minutes inside occupied blocks plus fully unused blocks
+        before, between, and after classes. Lower is better.
       </p>
 
       <!-- Constraint notice -->
@@ -505,14 +507,14 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
   <div style="background:rgba(186,12,47,.12);border:1px solid rgba(186,12,47,.3);border-radius:var(--radius);padding:8px 12px;font-size:11.5px;flex:1;min-width:220px">
     <span style="color:var(--uga-red);font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;font-size:10px">SC-9 · SOFT CONSTRAINT</span><br>
     <span style="color:var(--text)">Room dead-minutes are penalized, but not enforced as a hard constraint.</span>
-    <span style="color:var(--text-muted)"> Gaps &gt; 20 min between bookings in the same room are discouraged, but allowed if needed for feasibility.</span>
+    <span style="color:var(--text-muted)"> The optimizer prefers compact room/day usage with fewer unused 80-minute blocks.</span>
   </div>
 </div>
 
       <div class="util-legend">
         <span><span class="leg-dot" style="background:var(--accent-green)"></span>Active class time</span>
-        <span><span class="leg-dot" style="background:var(--accent-amber)"></span>Tail waste (80-min window unused)</span>
-        <span><span class="leg-dot" style="background:var(--accent-red)"></span>Gap waste (&gt;20 min idle between sections)</span>
+        <span><span class="leg-dot" style="background:var(--accent-amber)"></span>Unused inside occupied block</span>
+        <span><span class="leg-dot" style="background:var(--accent-red)"></span>Fully unused 80-minute block</span>
       </div>
 
       <!-- summary stat row -->
@@ -787,11 +789,12 @@ function renderCalendar() {
           <div class="ev-pop-sub">${who} · ${room}${ev.moved ? ' · MOVED' : ''}</div>
         </div>`;
       }).join('');
+      const popClass = day === 'F' ? 'ev-pop ev-pop-right' : 'ev-pop';
 
       div.innerHTML = `<div class="ev-title">MATH ${rep.course}${countPill}</div>
         ${height > 22 ? `<div class="ev-sub">${rep.room || 'TBA'}</div>` : ''}
         ${height > 36 ? `<div class="ev-sub">${esc(instructorLast)}</div>` : ''}
-        ${events.length > 1 ? `<div class="ev-pop">${popRows}</div>` : ''}`;
+        ${events.length > 1 ? `<div class="${popClass}">${popRows}</div>` : ''}`;
 
       if (events.length === 1) {
         div.title = `MATH ${rep.course} — ${rep.title}\n${rep.instructor}\n${rep.room}\nCRN ${rep.crn}${rep.moved ? ' [MOVED]' : ''}`;
@@ -877,6 +880,13 @@ function buildRoomDetail(room) {
       const fmt = (h,m) => `${h%12||12}:${String(m).padStart(2,'0')}${h<12?'am':'pm'}`;
       const totalDead = (sl.tail_waste||0)+(sl.gap_dead||0);
       const wasteCls  = totalDead===0?'ok':totalDead<20?'warn':'bad';
+      if (sl.is_idle) {
+        return `<div class="slot-row">
+          <span class="slot-time">${fmt(startH,startM)}–${fmt(bEndH,bEndM)}</span>
+          <span class="slot-course" style="opacity:.75">UNUSED 80-min block</span>
+          <span class="slot-waste bad">idle:${sl.slot_dead}m</span>
+        </div>`;
+      }
       return `<div class="slot-row">
         <span class="slot-time">${fmt(startH,startM)}–${fmt(endH,endM)} <span style="opacity:.5">(booked→${fmt(bEndH,bEndM)})</span></span>
         <span class="slot-course">MATH ${sl.course} · ${esc(sl.instructor.split(',')[0])}</span>

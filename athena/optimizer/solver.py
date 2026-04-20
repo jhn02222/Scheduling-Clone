@@ -4,27 +4,14 @@ All constraint weights are passed in at runtime via the `weights` dict.
 
 Dead-minutes model (SC-9)
 ─────────────────────────
-Each room is booked in 80-minute windows regardless of actual class duration.
-The department standard is ≥20 min turnaround between consecutive bookings in
-the same room on the same day.  Any idle gap ABOVE 20 minutes is waste.
+Each active room/day is evaluated over the full set of 80-minute universal
+blocks. Dead minutes are unused time inside those blocks:
 
-  dead_minutes(room, day) = Σ  max(0, gap_between_sections - 20)
+    if block occupied by a class of duration d: dead = 80 - d
+    if block unoccupied (but room/day is active): dead = 80
 
-where gap = actual_start(next) - actual_end(prev) inside the 80-min booking.
-
-Because the CP-SAT model works in discrete blocks (not continuous time) we
-approximate: two sections assigned to the SAME room on the SAME day in
-ADJACENT blocks waste  (80 - duration_of_first)  minutes of tail-time plus
-however many minutes the next section doesn't start immediately.  For
-non-adjacent same-room/same-day pairs the entire intervening window is waste.
-
-In practice:
-    booked_window  = 80 min  (fixed institutional slot)
-    tail_waste     = 80 - section_duration_mins   (unused tail of booking)
-  gap_waste      = max(0, gap_between_bookings - 20)
-
-SC-9 penalises  tail_waste + gap_waste  for every (room, day) pair where
-two or more sections land in the same room on the same day.
+This counts unused time before, between, and after classes within the active
+room/day horizon.
 
 Credit-hour rules (updated)
 ────────────────────────────
@@ -62,16 +49,16 @@ BOOKING_WINDOW = 80
 # Minimum desired turnaround between back-to-back sections in the same room
 MIN_TURNAROUND = 20
 
-CORE_COURSES = [1113, 2250, 2260, 2270, 2500, 2700, 3300]
 HIST_FILL    = {1113:0.932, 2250:0.934, 2260:0.938, 2270:0.931,
                 2500:0.949, 2700:0.978, 3300:0.931}
 
 # ── Credit-hour rules (updated) ──────────────────────────────────────────────
 # 3-credit: 2x80=160 (TR) or 3x55=165 (MWF) -> allow 140-175 (historical tolerance)
-# 4-credit: 2×100=200 (TR) or 3×67=201 (MWF) → allow 190–230
+# 4-credit sections in this dataset often use 2x80 lecture windows (160 mins),
+# so keep that viable while still allowing heavier weekly-minute patterns.
 CREDIT_MINUTE_RULES   = {3: {"min": 140, "max": 175},
-                          4: {"min": 190, "max": 230}}
-CREDIT_DAYCOUNT_RULES = {3: {2, 3}, 4: {3, 4}}
+                          4: {"min": 150, "max": 230}}
+CREDIT_DAYCOUNT_RULES = {3: {2, 3}, 4: {2, 3, 4}}
 
 COURSE_COLORS = {
     1113: {"face": "#f472b6", "edge": "#db2777"},
@@ -174,19 +161,9 @@ def minutes_to_hhmm(total_minutes):
     return hour * 100 + minute
 
 
-def normalize_course_scope(course_scope):
-    scope = str(course_scope or "core").strip().lower()
-    if scope not in {"core", "all_math"}:
-        raise ValueError(
-            f"Unsupported course_scope '{course_scope}'. Expected 'core' or 'all_math'."
-        )
-    return scope
-
-
 # ── Data loading ─────────────────────────────────────────────────────────────
 
-def load_data_from_csv(csv_path, course_scope="core"):
-    scope = normalize_course_scope(course_scope)
+def load_data_from_csv(csv_path):
     df = pd.read_csv(csv_path)
     for col in ["COURSE_NUMBER","ACADEMIC_PERIOD","BEGIN_TIME","END_TIME",
                 "MAXIMUM_ENROLLMENT","ACTUAL_ENROLLMENT","TOTAL_CREDITS_SECTION",
@@ -200,12 +177,7 @@ def load_data_from_csv(csv_path, course_scope="core"):
         (df["END_TIME"].notna())
     ].copy()
 
-    if scope == "core":
-        sp26 = sp26[sp26["COURSE_NUMBER"].isin(CORE_COURSES)].copy()
-
     if sp26.empty:
-        if scope == "core":
-            raise ValueError("No Spring 2026 MATH sections found for the core courses.")
         raise ValueError("No Spring 2026 MATH sections found for all-course scope.")
 
     sp26["DAYS"]       = sp26.apply(normalize_days, axis=1).replace("", "MWF")
@@ -272,8 +244,7 @@ def load_data_from_csv(csv_path, course_scope="core"):
     return sections, rooms
 
 
-def load_data_from_db(db_path, semester, course_scope="core"):
-    scope = normalize_course_scope(course_scope)
+def load_data_from_db(db_path, semester):
     if not db_path:
         raise ValueError("DB path is required for DB-backed solver input.")
 
@@ -303,14 +274,8 @@ def load_data_from_db(db_path, semester, course_scope="core"):
         if not rooms:
             raise ValueError("No classrooms found in DB with positive max_enrollment.")
 
-        if scope == "core":
-            course_filter_sql = "AND c.course_number IN ({})".format(
-                ",".join(["?"] * len(CORE_COURSES))
-            )
-            query_params = [semester, *CORE_COURSES]
-        else:
-            course_filter_sql = ""
-            query_params = [semester]
+        course_filter_sql = ""
+        query_params = [semester]
 
         sql = f"""
             SELECT
@@ -353,10 +318,6 @@ def load_data_from_db(db_path, semester, course_scope="core"):
 
         rows = conn.execute(sql, query_params).fetchall()
         if not rows:
-            if scope == "core":
-                raise ValueError(
-                    f"No course_section rows found for semester {semester} and configured core courses."
-                )
             raise ValueError(
                 f"No MATH course_section rows found for semester {semester} in all-course scope."
             )
@@ -452,16 +413,15 @@ def load_data_from_db(db_path, semester, course_scope="core"):
         conn.close()
 
 
-def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602", course_scope="core"):
+def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602"):
     source_normalized = str(source).strip().lower()
     if source_normalized == "db":
         return load_data_from_db(
             db_path=db_path,
             semester=str(semester),
-            course_scope=course_scope,
         )
     if source_normalized == "csv":
-        return load_data_from_csv(csv_path, course_scope=course_scope)
+        return load_data_from_csv(csv_path)
     raise ValueError(f"Unsupported solver data source '{source}'. Expected 'db' or 'csv'.")
 
 
@@ -683,10 +643,11 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 if is_lower and mid:           obj.append(W_LOWER_MID   * assign[sid,ri,b])
                 elif not is_lower and not mid: obj.append(W_UPPER_NOMID * assign[sid,ri,b])
 
-    # SC-9 room dead-minutes (day-aware).
-    # Penalise idle minutes > MIN_TURNAROUND for each room/day pair between
-    # occupied blocks according to the fixed 80-minute booking window.
-    log_fn("Adding SC-9 (LIGHT) room dead-minutes penalties...")
+    # SC-9 room dead-minutes (aligned with analytics definition).
+    # Dead minutes across active room/day horizons are equivalent (up to a
+    # constant) to minimizing the count of active (room, day) pairs. We use
+    # that compact form to keep solve performance stable.
+    log_fn("Adding SC-9 room dead-minutes penalties...")
 
     room_day_used = {}
     for ri in range(nr):
@@ -710,35 +671,15 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
 
     for ri in range(nr):
         for day in ACTIVE_DAYS:
-            for b1 in BLOCK_IDS:
-                for b2 in BLOCK_IDS:
-                    if b2 <= b1:
-                        continue
+            active = model.NewBoolVar(f"room_day_active_{ri}_{day}")
+            model.AddMaxEquality(
+                active,
+                [room_day_used[ri, day, b] for b in BLOCK_IDS],
+            )
+            obj.append(W_DEAD_MIN * BOOKING_WINDOW * len(BLOCK_IDS) * active)
+            sc9_terms += 1
 
-                    booking_end_b1 = BLOCK_START_MIN[b1] + BOOKING_WINDOW
-                    gap_min        = BLOCK_START_MIN[b2] - booking_end_b1
-                    dead_min       = max(0, gap_min - MIN_TURNAROUND)
-
-                    if dead_min == 0:
-                        continue
-
-                    both = model.NewBoolVar(f"sc9_room_{ri}_{day}_{b1}_{b2}")
-
-                    model.AddBoolAnd([
-                        room_day_used[ri,day,b1],
-                        room_day_used[ri,day,b2]
-                    ]).OnlyEnforceIf(both)
-
-                    model.AddBoolOr([
-                        room_day_used[ri,day,b1].Not(),
-                        room_day_used[ri,day,b2].Not(),
-                        both
-                    ])
-
-                    obj.append(W_DEAD_MIN * dead_min * both)
-                    sc9_terms += 1
-
-    log_fn(f"  SC-9: {sc9_terms} LIGHT room-gap terms added.")
+    log_fn(f"  SC-9: {sc9_terms} active-room-day terms added.")
 
     log_fn(f"Minimising objective ({len(obj)} terms)...")
     model.Minimize(sum(obj) if obj else model.NewIntVar(0,0,"zero"))
@@ -861,75 +802,84 @@ def analyze(solution, sections, rooms, weights=None):
             })
 
     # ── Room dead-minutes analysis ────────────────────────────────────────────
-    # Group all (room, day) bookings, sort by start time, compute gaps.
-    # booking_end = start + BOOKING_WINDOW  (not start + duration)
-    # dead_min    = max(0, next_start - booking_end - MIN_TURNAROUND)
-    #             + tail_waste of the earlier section
+    # Definition used here:
+    # For each active (room, day), each universal 80-minute block contributes
+    # dead minutes equal to the unused portion of that block.
+    # - occupied block: 80 - class_duration
+    # - unoccupied block: 80
+    # This counts unused time before, between, and after classes.
 
-    DAYS_LIST = ["M","T","W","R","F"]
+    room_day_blocks = defaultdict(dict)
+    for sid, asgn in sol.items():
+        s = sec_idx[sid]
+        room_id = asgn["room"]
+        block = asgn["block"]
+        start_min = BLOCK_START_MIN[block]
+        booking_end = start_min + BOOKING_WINDOW
+        actual_end = start_min + s["duration_mins"]
 
-    # room_day_slots[(room_id, day)] = sorted list of slot dicts
-    room_day_slots = defaultdict(list)
-    for ev in calendar:
-        room_day_slots[(ev["room"], ev["day"])].append({
-            "start":         ev["start"],
-            "booking_end":   ev["start"] + BOOKING_WINDOW,
-            "actual_end":    ev["end"],
-            "tail_waste":    ev["tail_waste"],
-            "duration_mins": ev["duration_mins"],
-            "course":        ev["course"],
-            "crn":           ev["crn"],
-            "instructor":    ev["instructor"],
-        })
+        slot_info = {
+            "start": start_min,
+            "booking_end": booking_end,
+            "actual_end": actual_end,
+            "tail_waste": max(0, BOOKING_WINDOW - s["duration_mins"]),
+            "gap_dead": 0,
+            "slot_dead": max(0, BOOKING_WINDOW - s["duration_mins"]),
+            "course": s["course"],
+            "crn": s["crn"],
+            "instructor": s["instructor"],
+            "duration_mins": s["duration_mins"],
+            "block": block,
+            "is_idle": False,
+        }
 
-    for key in room_day_slots:
-        room_day_slots[key].sort(key=lambda x: x["start"])
+        for day in s["days"]:
+            if day not in "MTWRF":
+                continue
+            room_day_blocks[(room_id, day)][block] = slot_info
 
-    # Per-room summary
-    room_dead_summary = {}   # room_id -> {total_dead, total_booked, slots_by_day}
+    room_dead_summary = {}
     total_dead_minutes = 0
 
-    for (room_id, day), slots in room_day_slots.items():
+    for (room_id, day), block_map in room_day_blocks.items():
         if room_id not in room_dead_summary:
             room_dead_summary[room_id] = {
                 "room_id": room_id,
-                "building": room_idx.get(room_id, {}).get("building","?"),
-                "capacity": room_idx.get(room_id, {}).get("capacity",0),
+                "building": room_idx.get(room_id, {}).get("building", "?"),
+                "capacity": room_idx.get(room_id, {}).get("capacity", 0),
                 "total_dead": 0,
                 "total_booked": 0,
                 "days": defaultdict(list),
             }
         rs = room_dead_summary[room_id]
 
-        for i, slot in enumerate(slots):
-            # Tail waste: unused minutes inside this section's 80-min booking
-            tail = slot["tail_waste"]
+        # Active room-day uses full universal block horizon.
+        for block in BLOCK_IDS:
+            start_min = BLOCK_START_MIN[block]
+            booking_end = start_min + BOOKING_WINDOW
 
-            # Gap waste: idle time between this booking end and next booking start
-            gap_dead = 0
-            if i + 1 < len(slots):
-                nxt = slots[i + 1]
-                gap = nxt["start"] - slot["booking_end"]
-                gap_dead = max(0, gap - MIN_TURNAROUND)
+            if block in block_map:
+                slot = dict(block_map[block])
+            else:
+                slot = {
+                    "start": start_min,
+                    "booking_end": booking_end,
+                    "actual_end": start_min,
+                    "tail_waste": 0,
+                    "gap_dead": BOOKING_WINDOW,
+                    "slot_dead": BOOKING_WINDOW,
+                    "course": None,
+                    "crn": None,
+                    "instructor": "",
+                    "duration_mins": 0,
+                    "block": block,
+                    "is_idle": True,
+                }
 
-            slot_dead = tail + gap_dead
-
-            rs["days"][day].append({
-                "start":        slot["start"],
-                "booking_end":  slot["booking_end"],
-                "actual_end":   slot["actual_end"],
-                "tail_waste":   tail,
-                "gap_dead":     gap_dead,
-                "slot_dead":    slot_dead,
-                "course":       slot["course"],
-                "crn":          slot["crn"],
-                "instructor":   slot["instructor"],
-                "duration_mins":slot["duration_mins"],
-            })
-
-            rs["total_dead"]   += slot_dead
+            rs["days"][day].append(slot)
+            rs["total_dead"] += slot["slot_dead"]
             rs["total_booked"] += BOOKING_WINDOW
-            total_dead_minutes += slot_dead
+            total_dead_minutes += slot["slot_dead"]
 
     # Convert defaultdict to plain dict for JSON serialisation
     room_dead_list = []

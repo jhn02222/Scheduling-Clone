@@ -113,6 +113,11 @@ CREATE TABLE IF NOT EXISTS constraint_record (
     FOREIGN KEY (involves_course_id) REFERENCES course(course_number)
 );
 
+CREATE TABLE IF NOT EXISTS user (
+    username TEXT PRIMARY KEY;
+    password TEXT NOT NULL;
+)
+
 INSERT OR IGNORE INTO time_slot (start_time, end_time, duration_minutes) VALUES
     ('08:15', '09:35', 80),
     ('09:55', '11:15', 80),

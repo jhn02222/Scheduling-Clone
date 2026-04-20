@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
 from .models import SavedSchedule
 
-from .solver import load_data, build_and_solve, analyze, BLOCK_LABEL, BLOCK_HHMM, CORE_COURSES
+from .solver import load_data, build_and_solve, analyze, BLOCK_LABEL, BLOCK_HHMM
 
 # ── In-process job state (fine for local single-user dev) ────────────────────
 _JOB = {"status": "idle", "log": [], "results": None, "error": None}
@@ -42,7 +42,6 @@ DEFAULT_WEIGHTS = {
 def index(request):
     return render(request, "optimizer/index.html", {
         "defaults": DEFAULT_WEIGHTS,
-        "courses":  CORE_COURSES,
     })
 
 
@@ -86,14 +85,12 @@ def run_optimizer(request):
                     source="db",
                     db_path=settings.DATABASES["default"]["NAME"],
                     semester=getattr(settings, "SCHEDULE_SEMESTER", "202602"),
-                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "core"),
                 )
             elif data_source == "csv":
                 _log("Loading CSV data...")
                 sections, rooms = load_data(
                     source="csv",
                     csv_path=settings.SCHEDULE_CSV,
-                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "core"),
                 )
             else:
                 raise ValueError(
