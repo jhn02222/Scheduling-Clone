@@ -6,18 +6,16 @@ import traceback
 
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.contrib.auth import login, authenticate
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth import login
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect
 from .models import SavedSchedule
-
 from .solver import load_data, build_and_solve, analyze, BLOCK_LABEL, BLOCK_HHMM
 
-# ── In-process job state (fine for local single-user dev) ────────────────────
+# ── In-process job state ─────────────────────────────────────────────────────
 _JOB = {"status": "idle", "log": [], "results": None, "error": None}
 _LOCK = threading.Lock()
 
@@ -38,13 +36,20 @@ DEFAULT_WEIGHTS = {
     "num_options":             3,
 }
 
+
+def _log(msg):
+    with _LOCK:
+        _JOB["log"].append(msg)
+    print(msg)
+
+
 @login_required
 def index(request):
     return render(request, "optimizer/index.html", {
         "defaults": DEFAULT_WEIGHTS,
     })
 
-@login_required
+
 @csrf_exempt
 @require_POST
 def run_optimizer(request):
@@ -84,12 +89,14 @@ def run_optimizer(request):
                     source="db",
                     db_path=settings.DATABASES["default"]["NAME"],
                     semester=getattr(settings, "SCHEDULE_SEMESTER", "202602"),
+                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "all_math"),
                 )
             elif data_source == "csv":
                 _log("Loading CSV data...")
                 sections, rooms = load_data(
                     source="csv",
                     csv_path=settings.SCHEDULE_CSV,
+                    course_scope=getattr(settings, "SCHEDULE_COURSE_SCOPE", "all_math"),
                 )
             else:
                 raise ValueError(
@@ -142,13 +149,7 @@ def run_optimizer(request):
     threading.Thread(target=_run, daemon=True).start()
     return JsonResponse({"ok": True})
 
-@login_required
-def _log(msg):
-    with _LOCK:
-        _JOB["log"].append(msg)
-    print(msg)
 
-@login_required
 def job_status(request):
     with _LOCK:
         status  = _JOB["status"]
@@ -166,26 +167,27 @@ def job_status(request):
         ]
     return JsonResponse(payload)
 
-@login_required
+
 def export_csv(request):
     with _LOCK:
         results = _JOB.get("results")
     if not results:
         return HttpResponse("No results yet.", status=400)
 
-    opt_idx = min(int(request.GET.get("opt", 0)), len(results)-1)
+    opt_idx = min(int(request.GET.get("opt", 0)), len(results) - 1)
     result  = results[opt_idx]
     sol     = result["solution"]
     stats   = result["stats"]
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Option","Score","CRN","Course","Instructor",
-                     "Days","Block","Time","Room","Moved"])
+    writer.writerow(["Option", "Score", "CRN", "Course", "Instructor",
+                     "Days", "Block", "Time", "Room", "Moved"])
     seen = set()
-    for ev in sorted(stats["calendar"], key=lambda e:(e["course"],e["start"],e["crn"])):
+    for ev in sorted(stats["calendar"], key=lambda e: (e["course"], e["start"], e["crn"])):
         key = (ev["crn"], ev["course"])
-        if key in seen: continue
+        if key in seen:
+            continue
         seen.add(key)
         asgn = sol["assignment"][ev["sid"]]
         b    = asgn["block"]
@@ -197,9 +199,10 @@ def export_csv(request):
     output.seek(0)
     resp = HttpResponse(output, content_type="text/csv")
     resp["Content-Disposition"] = (
-        f'attachment; filename="schedule_{sol["label"].replace(" ","_")}.csv"'
+        f'attachment; filename="schedule_{sol["label"].replace(" ", "_")}.csv"'
     )
     return resp
+
 
 def register(request):
     if request.method == "POST":
@@ -212,9 +215,10 @@ def register(request):
         form = UserCreationForm()
     return render(request, "optimizer/register.html", {"form": form})
 
-@login_required
+
 @csrf_exempt
 @require_POST
+@login_required
 def save_schedule(request):
     with _LOCK:
         results = _JOB.get("results")
@@ -223,7 +227,7 @@ def save_schedule(request):
 
     body = json.loads(request.body or b"{}")
     opt_idx = min(int(body.get("opt", 0)), len(results) - 1)
-    name = body.get("name", f"Schedule {opt_idx+1}")
+    name = body.get("name", f"Schedule {opt_idx + 1}")
     result = results[opt_idx]
 
     SavedSchedule.objects.create(
@@ -235,6 +239,7 @@ def save_schedule(request):
         score=result["solution"]["score"],
     )
     return JsonResponse({"ok": True})
+
 
 @login_required
 def saved_schedules(request):
