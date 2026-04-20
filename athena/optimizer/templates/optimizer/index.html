@@ -430,6 +430,11 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
       <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
              oninput="syncVal('w_dead_minutes','v-w-dead-min',this.value)">
     </div>
+    <div class="field">
+      <label>SC-10 Professor Preferences <span class="val" id="v-w-prof-pref">6</span></label>
+      <input type="range" id="w_prof_pref" min="0" max="50" value="6"
+             oninput="syncVal('w_prof_pref','v-w-prof-pref',this.value)">
+    </div>
     {% endwith %}
   </div>
 
@@ -447,12 +452,14 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <button class="tab-btn" data-tab="gaps"     onclick="switchTab('gaps',this)">⏱ Dead Minutes</button>
     <button class="tab-btn" data-tab="enroll"   onclick="switchTab('enroll',this)">📉 Enrollment</button>
     <button class="tab-btn" data-tab="instrs"   onclick="switchTab('instrs',this)">👤 Instructors</button>
-
+    <button class="tab-btn" data-tab="profs" onclick="window.location='/professors/'">👨‍🏫 Professors</button>
+    
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
       <select id="opt-select" onchange="renderAll()"></select>
       <button id="export-btn" onclick="exportCSV()">⬇ CSV</button>
     </div>
+    <a href="/logout/" style="margin-left:12px;font-size:12px;color:var(--text-muted);text-decoration:none">Logout</a>
   </div>
 
   <div id="content-area">
@@ -590,6 +597,7 @@ function collectWeights() {
     w_dead_minutes:           get("w_dead_minutes"),
     block_min_pct:            get("block_min_pct") / 100,
     block_max_pct:            get("block_max_pct") / 100,
+    w_prof_pref:              get("w_prof_pref"),
   };
 }
 
