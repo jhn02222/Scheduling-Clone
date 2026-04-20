@@ -491,6 +491,35 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 if len(vv) > 1:
                     model.AddAtMostOne(vv)
 
+    # HC-8: Every active professor must teach at least one section
+    log_fn("Adding HC-8: active professor minimum one section...")
+    try:
+        from optimizer.models import Professor
+        active_profs = set(
+            f"{p.last_name}, {p.first_name}".strip(", ")
+            for p in Professor.objects.filter(is_active=True)
+        )
+    except Exception:
+        active_profs = set()
+
+    hc8_count = 0
+    for instr, sids in by_instr.items():
+        if instr not in active_profs:
+            continue
+        # Collect all assignment vars for this instructor
+        all_vars = [
+            assign[sid, ri, b]
+            for sid in sids
+            for ri in range(nr)
+            for b in BLOCK_IDS
+            if (sid, ri, b) in assign
+        ]
+        if all_vars:
+            model.Add(sum(all_vars) >= 1)
+            hc8_count += 1
+
+    log_fn(f"  HC-8: {hc8_count} active professor minimum constraints added.")
+
     # HC-6: Hard 20-minute room turnaround between block assignments.
     # For each pair (b1, b2), two sections cannot share a room when:
     #   start(b2) - end_of_first_section < MIN_TURNAROUND
