@@ -252,6 +252,7 @@ def load_data_from_csv(csv_path):
 
 
 def load_data_from_db(db_path, semester, course_scope="core"):
+    CORE_COURSES = [1113, 2250, 2260, 2270, 2500, 2700, 3300] 
     scope = normalize_course_scope(course_scope)
 
     from optimizer.models import CourseSection, Classroom
