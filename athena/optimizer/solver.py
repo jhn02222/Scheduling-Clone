@@ -276,6 +276,9 @@ def load_data_from_db(db_path, semester, course_scope="core"):
         "schedule",
         "schedule__professor",
         "schedule__classroom",
+    ).filter(
+        semester=semester,
+        maximum_enrollment__gt=0,  # ← exclude ghost sections
     ).prefetch_related(
         "schedule__schedulemeetingblock_set__time_slot",
         "schedule__schedulemeetingblock_set__meeting_pattern",
