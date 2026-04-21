@@ -134,9 +134,9 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 }
 
 .tab-btn {
-  height: 48px; padding: 0 16px;
+  height: 48px; padding: 0 10px;
   background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--text-muted); font-size: 13px; cursor: pointer;
+  color: var(--text-muted); font-size: 12px; cursor: pointer;
   display: flex; align-items: center; gap: 6px;
   transition: color .15s, border-color .15s;
   white-space: nowrap;
@@ -446,7 +446,6 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 <!-- ══════════════════════════════════════════════════════════ MAIN -->
 <main id="main">
   <div id="topbar">
-    <h2>Results Viewer</h2>
     <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary',this)">📊 Summary</button>
     <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar',this)">📅 Calendar</button>
     <button class="tab-btn" data-tab="gaps"     onclick="switchTab('gaps',this)">⏱ Dead Minutes</button>
