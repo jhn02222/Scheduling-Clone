@@ -1455,23 +1455,29 @@ function switchTab(name, btn) {
 /* ── Run optimizer ──────────────────────────────────────────────────── */
 async function runOptimizer() {
   const btn = document.getElementById('run-btn');
-  btn.disabled = true; btn.textContent = 'Running...';
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+
   const log = document.getElementById('log-box');
   log.textContent = '';
 
-  // hide placeholder + results
-  document.getElementById('placeholder').style.display = 'none';
   document.getElementById('opt-selector').style.display = 'none';
+  document.getElementById('save-btn').style.display = 'none';
 
   showLoadingScreen();
+
   const weights = collectWeights();
+
   await fetch('/run/', {
     method: 'POST',
-    headers: {'Content-Type':'application/json', 'X-CSRFToken': getCookie('csrftoken')},
-    body: JSON.stringify({weights})
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({ weights })
   });
 
-  _polling = setInterval(pollStatus, 1200);
+  _polling = setInterval(pollStatus, 700);
 }
 
 async function pollStatus() {
@@ -2125,34 +2131,71 @@ function closeProfCal() {
   document.getElementById('prof-cal-modal').classList.remove('open');
 }
 let loadingTimer = null;
-let loadingStartedAt = null;
+let loadingDeadline = null;
+let loadingDuration = 60;
 
 function showLoadingScreen() {
-  document.getElementById('placeholder').style.display = 'none';
-  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
-  document.getElementById('loading-screen').style.display = 'flex';
+  const loading = document.getElementById('loading-screen');
+  if (!loading) return;
 
-  loadingStartedAt = Date.now();
+  // hide placeholder
+  const placeholder = document.getElementById('placeholder');
+  if (placeholder) placeholder.style.display = 'none';
+
+  // hide all result panes
+  document.querySelectorAll('.pane').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+
+  // show loading screen
+  loading.style.display = 'flex';
+
+  const pickedTime = parseInt(document.getElementById('solver_time')?.value || '60', 10);
+  loadingDuration = pickedTime;
+  loadingDeadline = Date.now() + pickedTime * 1000;
+
   updateLoadingTime();
 
   clearInterval(loadingTimer);
-  loadingTimer = setInterval(updateLoadingTime, 1000);
+  loadingTimer = setInterval(updateLoadingTime, 250);
 }
 
 function hideLoadingScreen() {
-  document.getElementById('loading-screen').style.display = 'none';
+  const loading = document.getElementById('loading-screen');
+  if (loading) loading.style.display = 'none';
+
+  document.querySelectorAll('.pane').forEach(p => {
+    p.style.display = '';
+  });
+
   clearInterval(loadingTimer);
+  loadingTimer = null;
+  loadingDeadline = null;
 }
 
 function updateLoadingTime() {
-  if (!loadingStartedAt) return;
-  const secs = Math.floor((Date.now() - loadingStartedAt) / 1000);
-  document.getElementById('loading-time').textContent = `${secs}s`;
-}
+  const el = document.getElementById('loading-time');
+  const sub = document.querySelector('.loading-sub');
+  if (!el || !loadingDeadline) return;
 
+  const remainingMs = loadingDeadline - Date.now();
+
+  if (remainingMs > 0) {
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    el.textContent = `${remainingSec}s`;
+    if (sub) sub.textContent = 'Remaining';
+  } else {
+    el.textContent = '...';
+    if (sub) sub.textContent = 'Finishing';
+  }
+}
 function updateLoadingMessage(rawLine) {
-  document.getElementById('loading-logline').textContent = rawLine || 'Working...';
-  document.getElementById('loading-phase').textContent = humanizeLogLine(rawLine);
+  const logline = document.getElementById('loading-logline');
+  const phase = document.getElementById('loading-phase');
+
+  if (logline) logline.textContent = rawLine || 'Working...';
+  if (phase) phase.textContent = humanizeLogLine(rawLine);
 }
 
 function humanizeLogLine(line) {
