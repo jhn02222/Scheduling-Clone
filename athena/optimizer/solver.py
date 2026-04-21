@@ -478,7 +478,6 @@ def load_data(*, source="csv", csv_path=None, db_path=None, semester="202602", c
 def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn=print):
     W_SKEL_SLOT    = int(weights.get("w_skeleton_slot",    8))
     W_SKEL_BLDG    = int(weights.get("w_skeleton_bldg",    2))
-    W_DEAD_GAP     = int(weights.get("w_dead_gap",        10))  # kept for SC-3 (instructor)
     UE_THRESH      = float(weights.get("under_enroll_threshold", 0.60))
     W_UNDER_ENROLL = int(weights.get("w_under_enroll",    12))
     W_BLOCK_OVER   = int(weights.get("w_block_over",      18))
@@ -650,16 +649,6 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
         model.Add(ov >= 0)
         blk_over[b] = ov
 
-    # Instructor-at-block helpers (for SC-3)
-    iab = {}
-    for instr, sids in by_instr.items():
-        iab[instr] = {}
-        for b in BLOCK_IDS:
-            v = model.NewBoolVar(f"iab_{instr}_{b}")
-            choices = [assign[sid,ri,b] for sid in sids for ri in range(nr) if (sid,ri,b) in assign]
-            if choices: model.AddMaxEquality(v, choices)
-            else: model.Add(v == 0)
-            iab[instr][b] = v
 
     # ── Objective ────────────────────────────────────────────────────────────
     obj = []
@@ -680,18 +669,6 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
             if r["building"] == sbld: continue
             for b in BLOCK_IDS:
                 if (sid,ri,b) in assign: obj.append(W_SKEL_BLDG * assign[sid,ri,b])
-
-    # SC-3 instructor dead-gap (block-level, kept for instructor scheduling quality)
-    for instr, bmap in iab.items():
-        for b1 in BLOCK_IDS:
-            for b2 in BLOCK_IDS:
-                if b2 <= b1: continue
-                gap = b2 - b1
-                if gap <= 1: continue
-                both = model.NewBoolVar(f"dg_{instr}_{b1}_{b2}")
-                model.Add(both <= bmap[b1]); model.Add(both <= bmap[b2])
-                model.Add(both >= bmap[b1] + bmap[b2] - 1)
-                obj.append(W_DEAD_GAP * (gap - 1) * both)
 
     # SC-4 under-enrollment
     for s in sections:
