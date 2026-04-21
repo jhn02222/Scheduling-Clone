@@ -453,6 +453,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <button class="tab-btn" data-tab="enroll"   onclick="switchTab('enroll',this)">📉 Enrollment</button>
     <button class="tab-btn" data-tab="instrs"   onclick="switchTab('instrs',this)">👤 Instructors</button>
     <button class="tab-btn" data-tab="profs"    onclick="switchTab('profs',this)">👨‍🏫 Professors</button>
+    <button class="tab-btn" data-tab="saved" onclick="switchTab('saved',this)">💾 Saved</button>
     
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
@@ -696,6 +697,61 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
           <div style="display:flex;gap:10px;justify-content:flex-end">
             <button onclick="hideAddProfModal()" style="background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text-muted);border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Cancel</button>
             <button onclick="addProfessor()" style="background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ── Saved Schedules ─────────────────────────────────────────────── -->
+    <div class="pane" id="pane-saved">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <h3 class="section-title" style="margin-bottom:4px">Saved Schedules</h3>
+          <p style="color:var(--text-muted);font-size:12px">
+            Your last 10 generated schedules. Click Load to view any schedule on the dashboard.
+          </p>
+        </div>
+        <button onclick="saveCurrentSchedule()" id="save-btn" style="
+          background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);
+          padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;margin-left:16px;
+          display:none">
+          💾 Save Current
+        </button>
+      </div>
+
+      <div class="card-wrap">
+        <table class="data-table" id="saved-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Semester</th>
+              <th>Score</th>
+              <th>Sections</th>
+              <th>Moved</th>
+              <th>Dead Min</th>
+              <th>Under-Enrolled</th>
+              <th>Saved</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="saved-tbody">
+            <tr><td colspan="9" style="color:var(--text-muted);padding:20px;text-align:center">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Name input modal -->
+      <div id="save-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center">
+        <div style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:24px;width:360px">
+          <h3 style="font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:16px">Save Schedule</h3>
+          <div style="margin-bottom:16px">
+            <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:4px">Schedule Name</label>
+            <input id="save-name" type="text" placeholder="e.g. Option A - Low Movement"
+              style="width:100%;background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
+              color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button onclick="hideSaveModal()" style="background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text-muted);border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Cancel</button>
+            <button onclick="confirmSave()" style="background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Save</button>
           </div>
         </div>
       </div>
@@ -1245,6 +1301,104 @@ function switchTab(name, btn) {
   document.getElementById('pane-' + name).classList.add('active');
   if (name === 'calendar') renderCalendar();
   if (name === 'profs') loadProfessors();
+  if (name === 'saved') loadSavedSchedules();
+}
+/* ── Saved Schedules ────────────────────────────────────────────────── */
+async function loadSavedSchedules() {
+  const resp = await fetch('/schedules/json/');
+  const data = await resp.json();
+  renderSavedTable(data.schedules);
+}
+
+function renderSavedTable(schedules) {
+  const tb = document.getElementById('saved-tbody');
+  if (!schedules.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="color:var(--text-muted);padding:20px;text-align:center">No saved schedules yet. Run the optimizer and save a result.</td></tr>';
+    return;
+  }
+  tb.innerHTML = schedules.map(s => `
+    <tr>
+      <td><strong>${esc(s.name)}</strong></td>
+      <td><code>${s.semester}</code></td>
+      <td><span class="badge ${s.score < 2000 ? 'badge-ok' : s.score < 5000 ? 'badge-warn' : 'badge-bad'}">${s.score}</span></td>
+      <td>${s.total_sections}</td>
+      <td>${s.moved} <small style="opacity:.5">(${s.moved_pct}%)</small></td>
+      <td>${s.dead_minutes}</td>
+      <td>${s.under_count}</td>
+      <td style="color:var(--text-muted);font-size:11px">${esc(s.created_at)}</td>
+      <td style="white-space:nowrap">
+        <button onclick="loadSavedSchedule(${s.id},'${esc(s.name)}')" style="
+          background:var(--uga-red);color:#fff;border:none;
+          border-radius:var(--radius);padding:4px 10px;
+          font-size:11px;cursor:pointer;margin-right:4px">▶ Load</button>
+        <button onclick="deleteSavedSchedule(${s.id})" style="
+          background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);
+          color:#f87171;border-radius:var(--radius);padding:4px 10px;
+          font-size:11px;cursor:pointer">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadSavedSchedule(id, name) {
+  const resp = await fetch(`/schedules/${id}/load/`);
+  const data = await resp.json();
+  if (!data.ok) return;
+
+  // Inject into results as if it was just generated
+  _results = [{
+    label: data.label,
+    score: data.score,
+    stats: data.stats,
+  }];
+  _activeOpt = 0;
+
+  const sel = document.getElementById('opt-select');
+  sel.innerHTML = `<option value="0">${esc(data.label)} (score: ${data.score})</option>`;
+  document.getElementById('opt-selector').style.display = 'flex';
+  document.getElementById('placeholder').style.display = 'none';
+  renderAll();
+
+  // Switch to summary tab
+  const summaryBtn = document.querySelector('.tab-btn[data-tab="summary"]');
+  if (summaryBtn) switchTab('summary', summaryBtn);
+}
+
+async function deleteSavedSchedule(id) {
+  if (!confirm('Delete this saved schedule?')) return;
+  await fetch(`/schedules/${id}/delete/`, {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  });
+  loadSavedSchedules();
+}
+
+function saveCurrentSchedule() {
+  document.getElementById('save-name').value = 
+    `Option ${String.fromCharCode(65 + _activeOpt)} - ${new Date().toLocaleDateString()}`;
+  document.getElementById('save-modal').style.display = 'flex';
+}
+
+function hideSaveModal() {
+  document.getElementById('save-modal').style.display = 'none';
+}
+
+async function confirmSave() {
+  const name = document.getElementById('save-name').value.trim() || `Schedule ${new Date().toLocaleDateString()}`;
+  await fetch('/save/', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({opt: _activeOpt, name}),
+  });
+  hideSaveModal();
+  loadSavedSchedules();
+}
+
+// Show save button when results exist
+const _origLoadResults = loadResults;
+function loadResults() {
+  _origLoadResults();
+  document.getElementById('save-btn').style.display = 'block';
 }
 </script>
 </body>
