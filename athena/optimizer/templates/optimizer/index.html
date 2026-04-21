@@ -782,6 +782,110 @@ html, body {
 
 .badge-active   { background: rgba(30,90,40,.12); color: #1e5a28; border: 1px solid rgba(30,90,40,.25); }
 .badge-inactive { background: rgba(0,0,0,.05);    color: #888;    border: 1px solid #ddd; }
+#loading-screen {
+  display: none;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.loading-card {
+  width: min(560px, 100%);
+  background: #fff;
+  border: 1px solid var(--uga-border);
+  border-top: 4px solid var(--uga-red);
+  padding: 36px 28px;
+  text-align: center;
+  box-shadow: 0 14px 40px rgba(0,0,0,.06);
+}
+
+.loading-ring-wrap {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto 20px;
+}
+
+.loading-ring {
+  width: 150px;
+  height: 150px;
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  fill: none;
+  stroke: #ececec;
+  stroke-width: 8;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: var(--uga-red);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 326.7;
+  stroke-dashoffset: 220;
+  animation: ringSpin 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes ringSpin {
+  from { stroke-dashoffset: 245; }
+  to   { stroke-dashoffset: 90; }
+}
+
+.loading-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-time {
+  font-family: 'DM Serif Display', serif;
+  font-size: 30px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.loading-sub {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+
+.loading-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.loading-phase {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--uga-red);
+  margin-bottom: 10px;
+}
+
+.loading-logline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-soft);
+  background: #f7f7f5;
+  border: 1px solid var(--uga-border);
+  padding: 10px 12px;
+  border-radius: 4px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>
 </head>
 <body>
@@ -978,6 +1082,25 @@ html, body {
      <div class="icon-placeholder"></div>
       <p>Configure constraint weights in the sidebar, then press <strong>Run Optimizer</strong> to generate schedule options.</p>
     </div>
+
+    <div id="loading-screen" style="display:none">
+  <div class="loading-card">
+    <div class="loading-ring-wrap">
+      <svg class="loading-ring" viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+        <circle class="ring-progress" cx="60" cy="60" r="52"></circle>
+      </svg>
+      <div class="loading-center">
+        <div class="loading-time" id="loading-time">0s</div>
+        <div class="loading-sub">Elapsed</div>
+      </div>
+    </div>
+
+    <div class="loading-title">Generating schedule options</div>
+    <div class="loading-phase" id="loading-phase">Preparing optimizer…</div>
+    <div class="loading-logline" id="loading-logline">Waiting for first update…</div>
+  </div>
+</div>
 
     <!-- ── Summary ─────────────────────────────────────────────── -->
     <div class="pane" id="pane-summary">
@@ -1340,6 +1463,7 @@ async function runOptimizer() {
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('opt-selector').style.display = 'none';
 
+  showLoadingScreen();
   const weights = collectWeights();
   await fetch('/run/', {
     method: 'POST',
@@ -1353,25 +1477,43 @@ async function runOptimizer() {
 async function pollStatus() {
   const resp = await fetch('/status/');
   const data = await resp.json();
-  const log  = document.getElementById('log-box');
+  const log = document.getElementById('log-box');
 
-  // Update log
-  log.innerHTML = data.log.map(l =>
+  // update loading screen with latest line
+  if (data.log && data.log.length) {
+    updateLoadingMessage(data.log[data.log.length - 1]);
+  }
+
+  // update sidebar log box
+  log.innerHTML = (data.log || []).map(l =>
     l.startsWith('✓') ? `<span class="ok">${esc(l)}</span>` :
-    l.startsWith('ERROR') ? `<span class="err">${esc(l)}</span>` : esc(l)
+    l.startsWith('ERROR') ? `<span class="err">${esc(l)}</span>` :
+    esc(l)
   ).join('\n');
   log.scrollTop = log.scrollHeight;
 
   if (data.status === 'done') {
     clearInterval(_polling);
+    hideLoadingScreen();
+
     _results = data.results || [];
+
     const btn = document.getElementById('run-btn');
-    btn.disabled = false; btn.textContent = 'Run Optimizer';
+    btn.disabled = false;
+    btn.textContent = 'Run Optimizer';
+
+    document.getElementById('opt-selector').style.display = 'flex';
+    document.getElementById('save-btn').style.display = 'inline-block';
+    switchTab('summary', document.querySelector('.tab-btn[data-tab="summary"]'));
+
     loadResults();
   } else if (data.status === 'error') {
     clearInterval(_polling);
+    hideLoadingScreen();
+
     const btn = document.getElementById('run-btn');
-    btn.disabled = false; btn.textContent = 'Run Optimizer';
+    btn.disabled = false;
+    btn.textContent = 'Run Optimizer';
   }
 }
 
@@ -1981,6 +2123,58 @@ function openProfCal(instrName) {
 
 function closeProfCal() {
   document.getElementById('prof-cal-modal').classList.remove('open');
+}
+let loadingTimer = null;
+let loadingStartedAt = null;
+
+function showLoadingScreen() {
+  document.getElementById('placeholder').style.display = 'none';
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('loading-screen').style.display = 'flex';
+
+  loadingStartedAt = Date.now();
+  updateLoadingTime();
+
+  clearInterval(loadingTimer);
+  loadingTimer = setInterval(updateLoadingTime, 1000);
+}
+
+function hideLoadingScreen() {
+  document.getElementById('loading-screen').style.display = 'none';
+  clearInterval(loadingTimer);
+}
+
+function updateLoadingTime() {
+  if (!loadingStartedAt) return;
+  const secs = Math.floor((Date.now() - loadingStartedAt) / 1000);
+  document.getElementById('loading-time').textContent = `${secs}s`;
+}
+
+function updateLoadingMessage(rawLine) {
+  document.getElementById('loading-logline').textContent = rawLine || 'Working...';
+  document.getElementById('loading-phase').textContent = humanizeLogLine(rawLine);
+}
+
+function humanizeLogLine(line) {
+  if (!line) return 'Preparing optimizer…';
+  const s = line.toLowerCase();
+
+  if (s.includes('loading db data') || s.includes('loading csv data')) return 'Loading schedule data';
+  if (s.includes('loaded') && s.includes('sections')) return 'Preparing optimization inputs';
+  if (s.includes('building cp-sat model')) return 'Building optimization model';
+  if (s.includes('hc-4')) return 'Checking room conflicts';
+  if (s.includes('hc-5')) return 'Checking instructor conflicts';
+  if (s.includes('hc-8')) return 'Applying professor availability rules';
+  if (s.includes('hc-2')) return 'Balancing block distribution';
+  if (s.includes('hc-9')) return 'Balancing day patterns';
+  if (s.includes('sc-9')) return 'Optimizing room efficiency';
+  if (s.includes('starting optimization')) return 'Starting solver';
+  if (s.includes('returned from build_and_solve')) return 'Collecting schedule options';
+  if (s.includes('analyzing')) return 'Analyzing generated schedules';
+  if (s.includes('done')) return 'Finishing up';
+  if (s.includes('error')) return 'Something went wrong';
+
+  return 'Running optimizer';
 }
 </script>
 </body>
