@@ -243,13 +243,58 @@ def save_schedule(request):
         stats_data=result["stats"],
         score=result["solution"]["score"],
     )
+
+    # Keep only last 10 per user
+    all_schedules = SavedSchedule.objects.filter(user=request.user).order_by('-created_at')
+    if all_schedules.count() > 10:
+        ids_to_delete = list(all_schedules.values_list('id', flat=True)[10:])
+        SavedSchedule.objects.filter(id__in=ids_to_delete).delete()
+
     return JsonResponse({"ok": True})
 
 
 @login_required
-def saved_schedules(request):
-    schedules = SavedSchedule.objects.filter(user=request.user)
-    return render(request, "optimizer/saved_schedules.html", {"schedules": schedules})
+def schedules_json(request):
+    schedules = SavedSchedule.objects.filter(user=request.user).order_by('-created_at')[:10]
+    data = []
+    for s in schedules:
+        stats = s.stats_data or {}
+        data.append({
+            'id': s.id,
+            'name': s.name,
+            'semester': s.semester,
+            'score': s.score,
+            'created_at': s.created_at.strftime('%b %d, %Y %I:%M %p'),
+            'total_sections': stats.get('total', 0),
+            'moved': stats.get('moved', 0),
+            'moved_pct': stats.get('moved_pct', 0),
+            'dead_minutes': stats.get('total_dead_minutes', 0),
+            'under_count': stats.get('under_count', 0),
+            'bldg_changes': stats.get('bldg_changes', 0),
+        })
+    return JsonResponse({'schedules': data})
+
+
+@login_required
+def load_schedule(request, schedule_id):
+    try:
+        s = SavedSchedule.objects.get(id=schedule_id, user=request.user)
+        return JsonResponse({
+            'ok': True,
+            'label': s.name,
+            'score': s.score,
+            'stats': s.stats_data,
+        })
+    except SavedSchedule.DoesNotExist:
+        return JsonResponse({'ok': False, 'msg': 'Schedule not found.'}, status=404)
+
+
+@login_required
+@require_POST
+def delete_schedule(request, schedule_id):
+    SavedSchedule.objects.filter(id=schedule_id, user=request.user).delete()
+    return JsonResponse({'ok': True})
+
 
 @login_required
 @require_POST
