@@ -334,6 +334,53 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
   background: var(--surface); border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius); overflow: hidden; margin-bottom: 18px;
 }
+
+/* ── Tooltips ────────────────────────────────────────────────────────── */
+.tooltip-wrap { position: relative; display: inline-block; margin-left: 4px; cursor: help; }
+.tooltip-icon { font-size: 10px; color: var(--text-muted); opacity: .6; }
+.tooltip-box {
+  display: none; position: absolute; left: 0; top: 100%; margin-top: 4px;
+  background: #1a1a1a; border: 1px solid rgba(255,255,255,.15);
+  border-radius: var(--radius); padding: 8px 10px;
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+  width: 220px; z-index: 50; pointer-events: none;
+}
+.tooltip-wrap:hover .tooltip-box { display: block; }
+/* ── Professor calendar modal ───────────────────────────────────────── */
+#prof-cal-modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.8); z-index: 200;
+  align-items: center; justify-content: center;
+}
+#prof-cal-modal.open { display: flex; }
+#prof-cal-inner {
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  border-radius: var(--radius); width: 90vw; max-width: 900px;
+  max-height: 85vh; overflow-y: auto; padding: 24px;
+}
+#prof-cal-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 16px; }
+#prof-cal-table th {
+  background: var(--surface-2); padding: 8px 6px; text-align: center;
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+#prof-cal-table th.time-col { width: 58px; }
+#prof-cal-table td {
+  border-right: 1px solid rgba(255,255,255,.04);
+  padding: 0; vertical-align: top; height: 48px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+#prof-cal-table td.time-col {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--text-muted); text-align: right; padding-right: 8px;
+  padding-top: 4px; background: var(--surface-2);
+}
+.prof-cal-event {
+  margin: 2px; padding: 4px 6px; border-radius: 4px;
+  font-size: 11px; line-height: 1.4; border-left: 3px solid;
+}
+.prof-cal-event .pce-course { font-weight: 600; color: #0f172a; }
+.prof-cal-event .pce-room { color: #334155; font-size: 10px; }
 </style>
 </head>
 <body>
@@ -346,92 +393,123 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     <h1>Math Schedule Optimizer<span>Athena · Phase 1</span></h1>
   </div>
 
-  <!-- General -->
-  <div class="sidebar-section">
-    <h2>General Settings</h2>
-    <div class="field">
-      <label>Solver Time (sec / option) <span class="val" id="v-solver-time">60</span></label>
-      <input type="range" id="solver_time" min="10" max="300" step="10" value="60"
-             oninput="syncVal('solver_time','v-solver-time',this.value)">
-    </div>
-    <div class="field">
-      <label>Number of Options <span class="val" id="v-num-options">3</span></label>
-      <input type="range" id="num_options" min="1" max="5" step="1" value="3"
-             oninput="syncVal('num_options','v-num-options',this.value)">
-    </div>
-    <div class="field">
-      <label>Block Min % <span class="val" id="v-block-min-pct">15%</span></label>
-      <input type="range" id="block_min_pct" min="0" max="30" step="1" value="15"
-             oninput="syncVal('block_min_pct','v-block-min-pct',this.value+'%')">
-    </div>
-    <div class="field">
-      <label>Block Max % <span class="val" id="v-block-max-pct">30%</span></label>
-      <input type="range" id="block_max_pct" min="20" max="60" step="1" value="30"
-             oninput="syncVal('block_max_pct','v-block-max-pct',this.value+'%')">
-    </div>
-  </div>
+  <!-- General Settings -->
+<div class="field">
+  <label>Solver Time (sec / option) <span class="val" id="v-solver-time">60</span></label>
+  <input type="range" id="solver_time" min="10" max="300" step="10" value="60"
+         oninput="syncVal('solver_time','v-solver-time',this.value)">
+</div>
+<div class="field">
+  <label>Number of Options <span class="val" id="v-num-options">3</span></label>
+  <input type="range" id="num_options" min="1" max="5" step="1" value="3"
+         oninput="syncVal('num_options','v-num-options',this.value)">
+</div>
+<div class="field">
+  <label>Block Min %
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Minimum % of sections that must be assigned to each time block. Prevents all sections clustering in one slot.</span></span>
+    <span class="val" id="v-block-min-pct">15%</span>
+  </label>
+  <input type="range" id="block_min_pct" min="0" max="30" step="1" value="15"
+         oninput="syncVal('block_min_pct','v-block-min-pct',this.value+'%')">
+</div>
+<div class="field">
+  <label>Block Max %
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Maximum % of sections allowed in any single time block. Prevents overloading one time slot.</span></span>
+    <span class="val" id="v-block-max-pct">30%</span>
+  </label>
+  <input type="range" id="block_max_pct" min="20" max="60" step="1" value="30"
+         oninput="syncVal('block_max_pct','v-block-max-pct',this.value+'%')">
+</div>
 
-  <!-- Soft constraint weights -->
-  <div class="sidebar-section">
-    <h2>Soft Constraint Weights</h2>
-    {% with sliders=defaults %}
-    <div class="field">
-      <label>SC-1 Skeleton Slot Fidelity <span class="val" id="v-w-skeleton-slot">8</span></label>
-      <input type="range" id="w_skeleton_slot" min="0" max="50" value="8"
-             oninput="syncVal('w_skeleton_slot','v-w-skeleton-slot',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-2 Building Continuity <span class="val" id="v-w-skeleton-bldg">2</span></label>
-      <input type="range" id="w_skeleton_bldg" min="0" max="30" value="2"
-             oninput="syncVal('w_skeleton_bldg','v-w-skeleton-bldg',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-4 Under-Enrollment Penalty <span class="val" id="v-w-under-enroll">12</span></label>
-      <input type="range" id="w_under_enroll" min="0" max="100" value="12"
-             oninput="syncVal('w_under_enroll','v-w-under-enroll',this.value)">
-    </div>
-    <div class="field">
-      <label>Under-Enroll Threshold <span class="val" id="v-ue-thresh">60%</span></label>
-      <input type="range" id="under_enroll_threshold" min="0" max="100" step="5" value="60"
-             oninput="syncVal('under_enroll_threshold','v-ue-thresh',this.value+'%')">
-    </div>
-    <div class="field">
-      <label>SC-5 Block Over-Cap Surplus <span class="val" id="v-w-block-over">18</span></label>
-      <input type="range" id="w_block_over" min="0" max="100" value="18"
-             oninput="syncVal('w_block_over','v-w-block-over',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-6 Instructor Overload <span class="val" id="v-w-instr-overload">20</span></label>
-      <input type="range" id="w_instr_overload" min="0" max="200" value="20"
-             oninput="syncVal('w_instr_overload','v-w-instr-overload',this.value)">
-    </div>
-    <div class="field">
-      <label>Instructor Max Sections <span class="val" id="v-instr-max">3</span></label>
-      <input type="range" id="instructor_max_sections" min="1" max="8" value="3"
-             oninput="syncVal('instructor_max_sections','v-instr-max',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-8 Lower Level in Midday ↑ <span class="val" id="v-w-lower-mid">5</span></label>
-      <input type="range" id="w_lower_midday" min="0" max="50" value="5"
-             oninput="syncVal('w_lower_midday','v-w-lower-mid',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-8 Upper Level Off-Midday ↑ <span class="val" id="v-w-upper-nomid">15</span></label>
-      <input type="range" id="w_upper_nonmidday" min="0" max="100" value="15"
-             oninput="syncVal('w_upper_nonmidday','v-w-upper-nomid',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-9 Room Dead-Minutes <span class="val" id="v-w-dead-min">3</span></label>
-      <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
-             oninput="syncVal('w_dead_minutes','v-w-dead-min',this.value)">
-    </div>
-    <div class="field">
-      <label>SC-10 Professor Preferences <span class="val" id="v-w-prof-pref">6</span></label>
-      <input type="range" id="w_prof_pref" min="0" max="50" value="6"
-             oninput="syncVal('w_prof_pref','v-w-prof-pref',this.value)">
-    </div>
-    {% endwith %}
-  </div>
+<!-- Soft Constraints -->
+<div class="field">
+  <label>SC-1 Skeleton Slot Fidelity
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes moving a section away from its current time block. Higher = solver tries harder to keep existing schedule.</span></span>
+    <span class="val" id="v-w-skeleton-slot">8</span>
+  </label>
+  <input type="range" id="w_skeleton_slot" min="0" max="50" value="8"
+         oninput="syncVal('w_skeleton_slot','v-w-skeleton-slot',this.value)">
+</div>
+<div class="field">
+  <label>SC-2 Building Continuity
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes assigning a section to a different building than it currently uses. Higher = prefer keeping sections in same building.</span></span>
+    <span class="val" id="v-w-skeleton-bldg">2</span>
+  </label>
+  <input type="range" id="w_skeleton_bldg" min="0" max="30" value="2"
+         oninput="syncVal('w_skeleton_bldg','v-w-skeleton-bldg',this.value)">
+</div>
+<div class="field">
+  <label>SC-4 Under-Enrollment Penalty
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes sections whose expected enrollment is below the threshold. Helps identify sections that may be too small to justify a room.</span></span>
+    <span class="val" id="v-w-under-enroll">12</span>
+  </label>
+  <input type="range" id="w_under_enroll" min="0" max="100" value="12"
+         oninput="syncVal('w_under_enroll','v-w-under-enroll',this.value)">
+</div>
+<div class="field">
+  <label>Under-Enroll Threshold
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Sections below this fill % are flagged as under-enrolled. E.g. 60% means a section with 12/20 students is flagged.</span></span>
+    <span class="val" id="v-ue-thresh">60%</span>
+  </label>
+  <input type="range" id="under_enroll_threshold" min="0" max="100" step="5" value="60"
+         oninput="syncVal('under_enroll_threshold','v-ue-thresh',this.value+'%')">
+</div>
+<div class="field">
+  <label>SC-5 Block Over-Cap Surplus
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes time blocks that exceed the max % cap. Keeps the schedule spread across all time slots.</span></span>
+    <span class="val" id="v-w-block-over">18</span>
+  </label>
+  <input type="range" id="w_block_over" min="0" max="100" value="18"
+         oninput="syncVal('w_block_over','v-w-block-over',this.value)">
+</div>
+<div class="field">
+  <label>SC-6 Instructor Overload
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes instructors assigned more sections than the max. Higher = stronger push to distribute sections evenly.</span></span>
+    <span class="val" id="v-w-instr-overload">20</span>
+  </label>
+  <input type="range" id="w_instr_overload" min="0" max="200" value="20"
+         oninput="syncVal('w_instr_overload','v-w-instr-overload',this.value)">
+</div>
+<div class="field">
+  <label>Instructor Max Sections
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Target maximum number of sections per instructor. SC-6 penalizes going above this number.</span></span>
+    <span class="val" id="v-instr-max">3</span>
+  </label>
+  <input type="range" id="instructor_max_sections" min="1" max="8" value="3"
+         oninput="syncVal('instructor_max_sections','v-instr-max',this.value)">
+</div>
+<div class="field">
+  <label>SC-8 Lower Level in Midday ↑
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Encourages lower-division courses (1000-2000) to be scheduled at midday. Higher enrollment courses benefit from peak attendance times.</span></span>
+    <span class="val" id="v-w-lower-mid">5</span>
+  </label>
+  <input type="range" id="w_lower_midday" min="0" max="50" value="5"
+         oninput="syncVal('w_lower_midday','v-w-lower-mid',this.value)">
+</div>
+<div class="field">
+  <label>SC-8 Upper Level Off-Midday ↑
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Encourages upper-division and grad courses (3000+) away from peak midday slots, freeing them for larger lower-division sections.</span></span>
+    <span class="val" id="v-w-upper-nomid">15</span>
+  </label>
+  <input type="range" id="w_upper_nonmidday" min="0" max="100" value="15"
+         oninput="syncVal('w_upper_nonmidday','v-w-upper-nomid',this.value)">
+</div>
+<div class="field">
+  <label>SC-9 Room Dead-Minutes
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes unused minutes inside booked room blocks. A 55-min class in an 80-min block wastes 25 minutes. Lower waste = higher room efficiency.</span></span>
+    <span class="val" id="v-w-dead-min">3</span>
+  </label>
+  <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
+         oninput="syncVal('w_dead_minutes','v-w-dead-min',this.value)">
+</div>
+<div class="field">
+  <label>SC-10 Professor Preferences
+    <span class="tooltip-wrap">ℹ<span class="tooltip-box">Weight applied to professor scheduling preferences (time of day, day pattern, course level). Higher = solver tries harder to honor preferences.</span></span>
+    <span class="val" id="v-w-prof-pref">6</span>
+  </label>
+  <input type="range" id="w_prof_pref" min="0" max="50" value="6"
+         oninput="syncVal('w_prof_pref','v-w-prof-pref',this.value)">
+</div>
 
   <button id="run-btn" onclick="runOptimizer()">▶ Run Optimizer</button>
 
@@ -552,7 +630,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
       <h3 class="section-title">Instructor Schedule</h3>
       <div class="card-wrap" id="instrs-wrap">
         <table class="data-table" id="instrs-table">
-          <thead><tr><th>Instructor</th><th>Sections</th><th>Time Blocks</th></tr></thead>
+          <thead><tr><th>Instructor</th><th>Sections</th><th>Time Blocks</th><th>Schedule</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -750,6 +828,25 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
         </div>
       </div>
     </div>
+    <!-- Professor calendar modal -->
+<div id="prof-cal-modal">
+  <div id="prof-cal-inner">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h3 style="font-family:'DM Serif Display',serif;font-size:18px" id="prof-cal-name">Professor Schedule</h3>
+      <button onclick="closeProfCal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px">✕</button>
+    </div>
+    <p id="prof-cal-subtitle" style="color:var(--text-muted);font-size:12px;margin-top:4px"></p>
+    <table id="prof-cal-table">
+      <thead>
+        <tr>
+          <th class="time-col">—</th>
+          <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>
+        </tr>
+      </thead>
+      <tbody id="prof-cal-body"></tbody>
+    </table>
+  </div>
+</div>
   </div><!-- content-area -->
 </main>
 </div><!-- shell -->
@@ -1136,6 +1233,12 @@ function renderInstrs(s) {
       <td>${sessions.map(se =>
         `<span class="badge badge-ok" style="margin:1px">MATH ${se.course} · ${se.block_label}</span>`
       ).join('')}</td>
+      <td>
+        <button onclick="openProfCal('${esc(instr)}')" style="
+          background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
+          color:var(--text);border-radius:var(--radius);padding:3px 8px;
+          font-size:11px;cursor:pointer">📅 View</button>
+      </td>
     </tr>`
   ).join('');
 }
@@ -1386,6 +1489,68 @@ async function confirmSave() {
   });
   hideSaveModal();
   loadSavedSchedules();
+}
+/* ── Professor Calendar ─────────────────────────────────────────────── */
+function openProfCal(instrName) {
+  const s = _results[_activeOpt]?.stats;
+  if (!s) {
+    alert('Run the optimizer first to see professor schedules.');
+    return;
+  }
+
+  const sessions = s.instr_table?.[instrName] || [];
+  const calendar = (s.calendar || []).filter(ev => ev.instructor === instrName);
+
+  document.getElementById('prof-cal-name').textContent = instrName;
+  document.getElementById('prof-cal-subtitle').textContent =
+    `${sessions.length} section(s) · Spring 2026`;
+
+  const tbody = document.getElementById('prof-cal-body');
+  tbody.innerHTML = '';
+
+  // Build hour rows 8am–6pm
+  for (let m = 8*60; m < 18*60; m += 60) {
+    const tr = document.createElement('tr');
+    const h = m/60; const h12 = h%12||12; const ap = h<12?'am':'pm';
+    tr.innerHTML = `<td class="time-col">${h12}${ap}</td>` +
+      DAYS.map(d => `<td id="pc-${d}-${m}"></td>`).join('');
+    tbody.appendChild(tr);
+  }
+
+  // Group events by day and block
+  const grouped = new Map();
+  calendar.forEach(ev => {
+    const k = `${ev.day}|${ev.start}`;
+    if (!grouped.has(k)) grouped.set(k, []);
+    grouped.get(k).push(ev);
+  });
+
+  grouped.forEach((events, key) => {
+    const [day, startStr] = key.split('|');
+    const start = Number(startStr);
+    const hourBucket = Math.floor(start / 60) * 60;
+    const cell = document.getElementById(`pc-${day}-${hourBucket}`);
+    if (!cell) return;
+
+    events.forEach(ev => {
+      const div = document.createElement('div');
+      div.className = 'prof-cal-event';
+      div.style.background = ev.face || '#4ade80';
+      div.style.borderColor = ev.edge || '#16a34a';
+      div.innerHTML = `
+        <div class="pce-course">MATH ${ev.course}</div>
+        <div class="pce-room">${esc(ev.room || 'TBA')}</div>
+        ${ev.moved ? '<div style="color:#ba0c2f;font-size:10px">↑ moved</div>' : ''}
+      `;
+      cell.appendChild(div);
+    });
+  });
+
+  document.getElementById('prof-cal-modal').classList.add('open');
+}
+
+function closeProfCal() {
+  document.getElementById('prof-cal-modal').classList.remove('open');
 }
 </script>
 </body>
