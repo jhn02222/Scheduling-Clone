@@ -53,7 +53,9 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
+  position: relative;
+  z-index: 20;
 }
 
 #sidebar-header {
@@ -86,10 +88,7 @@ html, body {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-.sidebar-section {
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
+
 .sidebar-section {
   padding: 16px 18px;
   border-bottom: 1px solid var(--uga-border);
@@ -98,11 +97,11 @@ html, body {
 .sidebar-section h2 {
   font-family: 'Inter', sans-serif;
   font-size: 11px;
-  letter-spacing: .12em;
+  letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--uga-red);
-  margin-bottom: 12px;
-  font-weight: 700;
+  margin-bottom: 14px;
+  font-weight: 800;
 }
 
 .field label {
@@ -110,39 +109,72 @@ html, body {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: var(--text-soft);
+  color: #3f3f3f;
   margin-bottom: 5px;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .field label .val {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--uga-black);
-  background: #f1f1f1;
-  border: 1px solid var(--uga-border);
+  background: #f5f5f5;
+  border: 1px solid #d2d2d2;
   padding: 2px 6px;
   border-radius: 2px;
   min-width: 38px;
   text-align: right;
 }
 
-.field input[type=number],
-#opt-select {
+.field input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  background: #fff;
-  border: 1px solid var(--uga-border-dark);
-  border-radius: 3px;
-  color: var(--text);
-  padding: 7px 9px;
-  font-size: 13px;
-  font-family: 'JetBrains Mono', monospace;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
 }
 
-.field input[type=number]:focus,
-#opt-select:focus {
+.field input[type=range]:focus {
   outline: none;
-  border-color: var(--uga-red);
+}
+
+.field input[type=range]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: #cfcfcf;
+  border-radius: 999px;
+}
+
+.field input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--uga-red);
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.field input[type=range]:hover::-webkit-slider-thumb {
+  background: #fafafa;
+}
+
+.field input[type=range]::-moz-range-track {
+  height: 3px;
+  background: #cfcfcf;
+  border-radius: 999px;
+}
+
+.field input[type=range]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--uga-red);
+  box-shadow: none;
 }
 .field { margin-bottom: 10px; }
 
@@ -238,20 +270,44 @@ html, body {
 #opt-selector {
   margin-left: auto; display: flex; align-items: center; gap: 8px;
 }
-#opt-selector label { font-size: 12px; color: var(--text-muted); }
-#opt-select {
-  background: var(--surface-2); border: 1px solid rgba(255,255,255,.1);
-  color: var(--text); border-radius: var(--radius);
-  padding: 4px 8px; font-size: 12px; cursor: pointer;
+/* Topbar selector */
+#opt-selector label {
+  font-size: 12px;
+  color: rgba(255,255,255,.85);
+  font-weight: 600;
+  letter-spacing: .04em;
 }
+
+/* Dropdown + export button */
+#opt-select,
 #export-btn {
-  margin-left: 8px;
-  background: var(--surface-2); border: 1px solid rgba(255,255,255,.12);
-  color: var(--text-muted); border-radius: var(--radius);
-  padding: 4px 10px; font-size: 12px; cursor: pointer;
-  transition: color .15s, border-color .15s;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  color: var(--uga-black);
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
-#export-btn:hover { color: var(--text); border-color: var(--uga-red); }
+
+/* Hover states */
+#opt-select:hover,
+#export-btn:hover {
+  border-color: var(--uga-red);
+  color: var(--uga-red);
+}
+#opt-selector label,
+.blk-lbl,
+.blk-cnt,
+.util-room-id,
+.util-pct,
+.slot-time,
+.util-legend,
+#placeholder,
+#placeholder p {
+  color: var(--text-soft);
+}
 
 #content-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
 
@@ -455,16 +511,64 @@ html, body {
 
 
 /* ── Tooltips ────────────────────────────────────────────────────────── */
-.tooltip-wrap { position: relative; display: inline-block; margin-left: 4px; cursor: help; }
-.tooltip-icon { font-size: 10px; color: var(--text-muted); opacity: .6; }
-.tooltip-box {
-  display: none; position: absolute; left: 0; top: 100%; margin-top: 4px;
-  background: #1a1a1a; border: 1px solid rgba(255,255,255,.15);
-  border-radius: var(--radius); padding: 8px 10px;
-  font-size: 11px; color: var(--text-muted); line-height: 1.5;
-  width: 220px; z-index: 50; pointer-events: none;
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  cursor: help;
 }
-.tooltip-wrap:hover .tooltip-box { display: block; }
+
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--uga-border-dark);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--uga-red);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tooltip-box {
+  display: none;
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 260px;
+  background: #111111;
+  color: #f4f4f4;
+  border: 1px solid rgba(255,255,255,.14);
+  border-left: 4px solid var(--uga-red);
+  border-radius: 3px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22);
+  z-index: 999;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.tooltip-box::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid #111111;
+}
+
+.tooltip-wrap:hover .tooltip-box {
+  display: block;
+}
 /* ── Professor calendar modal ───────────────────────────────────────── */
 #prof-cal-modal {
   display: none; position: fixed; inset: 0;
@@ -557,6 +661,25 @@ html, body {
   padding: 24px 28px;
   background: var(--uga-offwhite);
 }
+.logout-link {
+  margin-left: 14px;
+  padding: 8px 10px;
+  color: rgba(255,255,255,.92);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 3px;
+  transition: background .2s, color .2s, border-color .2s;
+}
+
+.logout-link:hover {
+  background: var(--uga-red);
+  color: #fff;
+  border-color: var(--uga-red);
+}
 </style>
 </head>
 <body>
@@ -584,7 +707,7 @@ html, body {
     </div>
     <div class="field">
       <label>Block Min %
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Minimum % of sections that must be assigned to each time block. Prevents all sections clustering in one slot.</span></span>
+        <span class="tooltip-wrap"> <span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Minimum % of sections that must be assigned to each time block. Prevents all sections clustering in one slot.</span></span>
         <span class="val" id="v-block-min-pct">15%</span>
       </label>
       <input type="range" id="block_min_pct" min="0" max="30" step="1" value="15"
@@ -592,7 +715,7 @@ html, body {
     </div>
     <div class="field">
       <label>Block Max %
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Maximum % of sections allowed in any single time block. Prevents overloading one time slot.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Maximum % of sections allowed in any single time block. Prevents overloading one time slot.</span></span>
         <span class="val" id="v-block-max-pct">30%</span>
       </label>
       <input type="range" id="block_max_pct" min="20" max="60" step="1" value="30"
@@ -605,7 +728,7 @@ html, body {
     <h2>Soft Constraint Weights</h2>
     <div class="field">
       <label>SC-1 Skeleton Slot Fidelity
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes moving a section away from its current time block. Higher = solver tries harder to keep existing schedule.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes moving a section away from its current time block. Higher = solver tries harder to keep existing schedule.</span></span>
         <span class="val" id="v-w-skeleton-slot">8</span>
       </label>
       <input type="range" id="w_skeleton_slot" min="0" max="50" value="8"
@@ -613,7 +736,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-2 Building Continuity
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes assigning a section to a different building than it currently uses. Higher = prefer keeping sections in same building.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes assigning a section to a different building than it currently uses. Higher = prefer keeping sections in same building.</span></span>
         <span class="val" id="v-w-skeleton-bldg">2</span>
       </label>
       <input type="range" id="w_skeleton_bldg" min="0" max="30" value="2"
@@ -621,7 +744,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-4 Under-Enrollment Penalty
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes sections whose expected enrollment is below the threshold. Helps identify sections that may be too small to justify a room.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span>span class="tooltip-box">Penalizes sections whose expected enrollment is below the threshold. Helps identify sections that may be too small to justify a room.</span></span>
         <span class="val" id="v-w-under-enroll">12</span>
       </label>
       <input type="range" id="w_under_enroll" min="0" max="100" value="12"
@@ -629,7 +752,7 @@ html, body {
     </div>
     <div class="field">
       <label>Under-Enroll Threshold
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Sections below this fill % are flagged as under-enrolled. E.g. 60% means a section with 12/20 students is flagged.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Sections below this fill % are flagged as under-enrolled. E.g. 60% means a section with 12/20 students is flagged.</span></span>
         <span class="val" id="v-ue-thresh">60%</span>
       </label>
       <input type="range" id="under_enroll_threshold" min="0" max="100" step="5" value="60"
@@ -637,7 +760,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-5 Block Over-Cap Surplus
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes time blocks that exceed the max % cap. Keeps the schedule spread across all time slots.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes time blocks that exceed the max % cap. Keeps the schedule spread across all time slots.</span></span>
         <span class="val" id="v-w-block-over">18</span>
       </label>
       <input type="range" id="w_block_over" min="0" max="100" value="18"
@@ -645,7 +768,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-6 Instructor Overload
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes instructors assigned more sections than the max. Higher = stronger push to distribute sections evenly.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes instructors assigned more sections than the max. Higher = stronger push to distribute sections evenly.</span></span>
         <span class="val" id="v-w-instr-overload">20</span>
       </label>
       <input type="range" id="w_instr_overload" min="0" max="200" value="20"
@@ -653,7 +776,7 @@ html, body {
     </div>
     <div class="field">
       <label>Instructor Max Sections
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Target maximum number of sections per instructor. SC-6 penalizes going above this number.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Target maximum number of sections per instructor. SC-6 penalizes going above this number.</span></span>
         <span class="val" id="v-instr-max">3</span>
       </label>
       <input type="range" id="instructor_max_sections" min="1" max="8" value="3"
@@ -661,7 +784,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-8 Lower Level in Midday ↑
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Encourages lower-division courses (1000-2000) to be scheduled at midday. Higher enrollment courses benefit from peak attendance times.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Encourages lower-division courses (1000-2000) to be scheduled at midday. Higher enrollment courses benefit from peak attendance times.</span></span>
         <span class="val" id="v-w-lower-mid">5</span>
       </label>
       <input type="range" id="w_lower_midday" min="0" max="50" value="5"
@@ -669,7 +792,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-8 Upper Level Off-Midday ↑
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Encourages upper-division and grad courses (3000+) away from peak midday slots, freeing them for larger lower-division sections.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Encourages upper-division and grad courses (3000+) away from peak midday slots, freeing them for larger lower-division sections.</span></span>
         <span class="val" id="v-w-upper-nomid">15</span>
       </label>
       <input type="range" id="w_upper_nonmidday" min="0" max="100" value="15"
@@ -677,7 +800,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-9 Room Dead-Minutes
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Penalizes unused minutes inside booked room blocks. A 55-min class in an 80-min block wastes 25 minutes. Lower waste = higher room efficiency.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes unused minutes inside booked room blocks. A 55-min class in an 80-min block wastes 25 minutes. Lower waste = higher room efficiency.</span></span>
         <span class="val" id="v-w-dead-min">3</span>
       </label>
       <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
@@ -685,7 +808,7 @@ html, body {
     </div>
     <div class="field">
       <label>SC-10 Professor Preferences
-        <span class="tooltip-wrap">ℹ<span class="tooltip-box">Weight applied to professor scheduling preferences (time of day, day pattern, course level). Higher = solver tries harder to honor preferences.</span></span>
+        <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Weight applied to professor scheduling preferences (time of day, day pattern, course level). Higher = solver tries harder to honor preferences.</span></span>
         <span class="val" id="v-w-prof-pref">6</span>
       </label>
       <input type="range" id="w_prof_pref" min="0" max="50" value="6"
@@ -719,7 +842,7 @@ html, body {
   padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap">
   💾 Save
 </button>
-    <a href="/logout/" style="margin-left:12px;font-size:12px;color:var(--text-muted);text-decoration:none">Logout</a>
+    <a href="/logout/" class="logout-link">Logout</a>
   </div>
 
   <div id="content-area">
