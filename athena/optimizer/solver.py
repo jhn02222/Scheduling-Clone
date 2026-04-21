@@ -56,8 +56,8 @@ HIST_FILL    = {1113:0.932, 2250:0.934, 2260:0.938, 2270:0.931,
 # 3-credit: 2x80=160 (TR) or 3x55=165 (MWF) -> allow 140-175 (historical tolerance)
 # 4-credit sections in this dataset often use 2x80 lecture windows (160 mins),
 # so keep that viable while still allowing heavier weekly-minute patterns.
-CREDIT_MINUTE_RULES   = {3: {"min": 140, "max": 175},
-                          4: {"min": 150, "max": 230}}
+CREDIT_MINUTE_RULES = {3: {"min": 140, "max": 175},
+                       4: {"min": 150, "max": 250}}
 CREDIT_DAYCOUNT_RULES = {3: {2, 3}, 4: {2, 3, 4}}
 
 COURSE_COLORS = {
@@ -391,6 +391,71 @@ def load_data_from_db(db_path, semester, course_scope="core"):
             "color": course_color(course),
         })
 
+        # Inject floating sections for active professors with no surviving sections
+    try:
+        from optimizer.models import Professor as ProfModel
+        active_prof_names = set(
+            f"{p.last_name}, {p.first_name}".strip(", ")
+            for p in ProfModel.objects.filter(is_active=True)
+        )
+        scheduled_names = set(s["instructor"] for s in sections if s["instructor"] != "TBA")
+        missing_active = active_prof_names - scheduled_names
+
+        for name in missing_active:
+            # Find their actual sections to get course info
+            parts = name.split(", ", 1)
+            last = parts[0] if parts else ""
+            first = parts[1] if len(parts) > 1 else ""
+            from optimizer.models import Professor as PM, Schedule as SM
+            try:
+                prof = PM.objects.get(last_name=last, first_name=first)
+                sched = SM.objects.filter(
+                    professor=prof,
+                    course_section__semester=semester,
+                ).select_related('course_section__course').first()
+                if sched:
+                    cs = sched.course_section
+                    course = cs.course.course_number
+                    cap = max(cs.maximum_enrollment or 20, 1)
+                    exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
+                    credits = cs.course.max_credits or cs.course.min_credits or 3
+                else:
+                    course = 1113  # default course
+                    cap = 20
+                    exp = 17
+                    credits = 3
+            except Exception:
+                course = 1113
+                cap = 20
+                exp = 17
+                credits = 3
+
+            sections.append({
+                "id": len(sections) + 10000,
+                "db_section_id": None,
+                "crn": 99000 + len(sections),
+                "course": course,
+                "title": "Floating Section",
+                "instructor": name,
+                "days": "TR",
+                "day_count": 2,
+                "begin_int": 955,
+                "end_int": 1115,
+                "duration_mins": 80,
+                "weekly_minutes": 160,
+                "tail_waste": 0,
+                "credits": credits,
+                "capacity": cap,
+                "actual_enroll": 0,
+                "exp_enroll": exp,
+                "skel_block": 1,
+                "skel_room": None,
+                "skel_bldg": "",
+                "color": course_color(course),
+            })
+            print(f"  Injected floating section for active professor: {name}")
+    except Exception as e:
+        print(f"  Warning: could not inject floating sections: {e}")
     if not sections:
         raise ValueError("No sections survived filters and credit-hour validation.")
 
