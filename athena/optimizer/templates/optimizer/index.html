@@ -779,6 +779,9 @@ html, body {
   color: #fff;
   border-color: var(--uga-red);
 }
+
+.badge-active   { background: rgba(30,90,40,.12); color: #1e5a28; border: 1px solid rgba(30,90,40,.25); }
+.badge-inactive { background: rgba(0,0,0,.05);    color: #888;    border: 1px solid #ddd; }
 </style>
 </head>
 <body>
@@ -1719,9 +1722,9 @@ function renderProfTable(profs) {
           color:#333;border-radius:var(--radius);padding:4px 10px;
           font-size:11px;cursor:pointer;margin-right:4px">Edit</button>
         <button onclick="toggleProfActive(${p.id})" style="
-          background:${p.is_active ? 'rgba(0,0,0,.06)' : 'rgba(186,12,47,.08)'};
-          border:1px solid ${p.is_active ? '#ccc' : 'rgba(186,12,47,.3)'};
-          color:${p.is_active ? '#333' : '#ba0c2f'};
+          background:${p.is_active ? 'rgba(30,90,40,.10)' : 'rgba(186,12,47,.08)'};
+          border:1px solid ${p.is_active ? 'rgba(30,90,40,.28)' : 'rgba(186,12,47,.3)'};
+          color:${p.is_active ? '#1e5a28' : '#ba0c2f'};
           border-radius:var(--radius);padding:4px 10px;
           font-size:11px;cursor:pointer;margin-right:4px">
           ${p.is_active ? 'Deactivate' : 'Activate'}</button>
