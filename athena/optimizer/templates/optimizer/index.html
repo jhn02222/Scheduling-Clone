@@ -358,9 +358,9 @@ html, body {
   display: inline-block; padding: 2px 7px; border-radius: 20px;
   font-size: 10px; font-weight: 600; letter-spacing: .04em;
 }
-.badge-ok   { background: rgba(34,197,94,.15);  color: #4ade80; }
-.badge-warn { background: rgba(245,158,11,.15); color: #fbbf24; }
-.badge-bad  { background: rgba(239,68,68,.15);  color: #f87171; }
+.badge-ok   { background: rgba(0,0,0,0.06);  color: #2a2a2a; border: 1px solid #c8c8c8; }
+.badge-warn { background: rgba(186,12,47,.10); color: #7a0820; border: 1px solid rgba(186,12,47,.25); }
+.badge-bad  { background: rgba(186,12,47,.18); color: #ba0c2f; border: 1px solid rgba(186,12,47,.35); }
 .badge-moved { background: rgba(186,12,47,.20);  color: #ff6680; }
 
 /* ── Block distribution bar ──────────────────────────────────────────── */
@@ -392,7 +392,7 @@ html, body {
 .day-cell { position:relative; height:100%; }
 .cal-event { position:absolute; left:2px; right:2px; border-radius:4px;
              overflow:hidden; font-size:10.5px; line-height:1.3; padding:3px 5px;
-             border-left:3px solid; z-index:2; cursor:default; }
+             border-left:3px solid; z-index:2; cursor:default; background: #e8e4e1; border-color: #b0a8a4; }
 .cal-event:hover { filter:brightness(1.1); z-index:5; }
 .cal-event .ev-title { font-weight:600; color:#0f172a; white-space:nowrap;
                        overflow:hidden; text-overflow:ellipsis; }
@@ -1706,7 +1706,7 @@ function renderProfTable(profs) {
     const hasPref = !!pref;
     return `<tr>
       <td><strong>${esc(p.last_name)}, ${esc(p.first_name)}</strong></td>
-      <td>${p.is_active ? '<span class="badge badge-ok">Active</span>' : '<span class="badge badge-warn">Inactive</span>'}</td>
+      <td>${p.is_active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
       <td>${hasPref ? TEN_LABELS[pref.tenured]||'—' : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td>${hasPref ? (TIME_LABELS[pref.time_of_day]||'—') : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td>${hasPref ? (DAY_LABELS[pref.day_pattern]||'—') : '<span style="color:var(--text-muted)">—</span>'}</td>
@@ -1715,19 +1715,19 @@ function renderProfTable(profs) {
       <td>${hasPref && pref.avoid_back_to_back ? '<span class="badge badge-warn">Yes</span>' : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td style="white-space:nowrap">
         <button onclick="editProf(${p.id},'${esc(p.last_name)}, ${esc(p.first_name)}')" style="
-          background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
-          color:var(--text);border-radius:var(--radius);padding:4px 10px;
+          background:rgba(0,0,0,.06);border:1px solid #ccc;
+          color:#333;border-radius:var(--radius);padding:4px 10px;
           font-size:11px;cursor:pointer;margin-right:4px">Edit</button>
         <button onclick="toggleProfActive(${p.id})" style="
-          background:${p.is_active ? 'rgba(245,158,11,.15)' : 'rgba(34,197,94,.15)'};
-          border:1px solid ${p.is_active ? 'rgba(245,158,11,.3)' : 'rgba(34,197,94,.3)'};
-          color:${p.is_active ? '#fbbf24' : '#4ade80'};
+          background:${p.is_active ? 'rgba(0,0,0,.06)' : 'rgba(186,12,47,.08)'};
+          border:1px solid ${p.is_active ? '#ccc' : 'rgba(186,12,47,.3)'};
+          color:${p.is_active ? '#333' : '#ba0c2f'};
           border-radius:var(--radius);padding:4px 10px;
           font-size:11px;cursor:pointer;margin-right:4px">
           ${p.is_active ? 'Deactivate' : 'Activate'}</button>
         <button onclick="deleteProf(${p.id},'${esc(p.last_name)}')" style="
-          background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);
-          color:#f87171;border-radius:var(--radius);padding:4px 10px;
+          background:rgba(186,12,47,.10);border:1px solid rgba(186,12,47,.3);
+          color:#ba0c2f;border-radius:var(--radius);padding:4px 10px;
           font-size:11px;cursor:pointer">Delete</button>
       </td>
     </tr>`;
