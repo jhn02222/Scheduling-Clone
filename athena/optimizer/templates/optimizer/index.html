@@ -517,6 +517,7 @@ html, body {
   line-height: 1.35;
 }
 
+/* ── Tooltips (NO LAYOUT SHIFT) ───────────────────────────────────── */
 .tooltip-wrap {
   position: relative;
   display: inline-flex;
@@ -537,38 +538,50 @@ html, body {
   color: var(--uga-red);
   font-size: 10px;
   font-weight: 700;
-  line-height: 1;
-  flex-shrink: 0;
 }
 
 .tooltip-box {
-  display: none;
-  position: static;
-  width: 100%;
-  margin-top: 8px;
-  background: #111111;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);   /* 👈 shows ABOVE */
+  width: 260px;
+
+  background: #111;
   color: #f4f4f4;
   border: 1px solid rgba(255,255,255,.14);
   border-left: 4px solid var(--uga-red);
-  border-radius: 3px;
+  border-radius: 4px;
+
   padding: 10px 12px;
   font-size: 12px;
-  line-height: 1.55;
-  box-shadow: 0 10px 24px rgba(0,0,0,.18);
-  white-space: normal;
+  line-height: 1.5;
+
+  box-shadow: 0 12px 28px rgba(0,0,0,.25);
+
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .15s ease, transform .15s ease;
+
   pointer-events: none;
-  order: 3;
-  flex-basis: 100%;
+  z-index: 9999;
 }
 
-.tooltip-box::before {
-  display: none;
+/* arrow */
+.tooltip-box::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 10px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: #111 transparent transparent transparent;
 }
 
+/* smooth fade in */
 .tooltip-wrap:hover .tooltip-box {
-  display: block;
+  opacity: 1;
+  transform: translateY(0);
 }
-/* ── Professor calendar modal ───────────────────────────────────────── */
 /* ── Professor calendar modal ───────────────────────────────────────── */
 #prof-cal-modal {
   display: none;
