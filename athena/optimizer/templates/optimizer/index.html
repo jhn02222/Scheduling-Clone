@@ -460,6 +460,12 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
       <select id="opt-select" onchange="renderAll()"></select>
       <button id="export-btn" onclick="exportCSV()">⬇ CSV</button>
     </div>
+    <button onclick="saveCurrentSchedule()" id="save-btn" style="
+  display:none;margin-left:8px;
+  background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);
+  padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap">
+  💾 Save
+</button>
     <a href="/logout/" style="margin-left:12px;font-size:12px;color:var(--text-muted);text-decoration:none">Logout</a>
   </div>
 
@@ -710,12 +716,6 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
             Your last 10 generated schedules. Click Load to view any schedule on the dashboard.
           </p>
         </div>
-        <button onclick="saveCurrentSchedule()" id="save-btn" style="
-          background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);
-          padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;margin-left:16px;
-          display:none">
-          💾 Save Current
-        </button>
       </div>
 
       <div class="card-wrap">
@@ -863,6 +863,7 @@ function loadResults() {
     `<option value="${i}">${r.label} (score: ${r.score})</option>`
   ).join('');
   document.getElementById('opt-selector').style.display = 'flex';
+  document.getElementById('save-btn').style.display = 'block';  // ← add this
   _activeOpt = 0;
   renderAll();
   
@@ -1392,13 +1393,6 @@ async function confirmSave() {
   });
   hideSaveModal();
   loadSavedSchedules();
-}
-
-// Show save button when results exist
-const _origLoadResults = loadResults;
-function loadResults() {
-  _origLoadResults();
-  document.getElementById('save-btn').style.display = 'block';
 }
 </script>
 </body>
