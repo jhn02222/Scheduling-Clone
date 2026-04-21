@@ -498,32 +498,30 @@ html, body {
 }
 
 
-/* ── Tooltips ────────────────────────────────────────────────────────── */
 .field {
   margin-bottom: 10px;
   position: relative;
 }
 
 .field label {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
   font-size: 12px;
   color: #3f3f3f;
   margin-bottom: 5px;
   font-weight: 600;
   line-height: 1.35;
+  position: relative;
 }
 
-/* ── Tooltips (NO LAYOUT SHIFT) ───────────────────────────────────── */
 .tooltip-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
-  cursor: help;
+  justify-content: center;
+  grid-column: 1;
 }
 
 .tooltip-trigger {
@@ -538,49 +536,72 @@ html, body {
   color: var(--uga-red);
   font-size: 10px;
   font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.field label .label-text {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.field label .val {
+  grid-column: 3;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--uga-black);
+  background: #f5f5f5;
+  border: 1px solid #d2d2d2;
+  padding: 2px 6px;
+  border-radius: 2px;
+  min-width: 38px;
+  text-align: right;
 }
 
 .tooltip-box {
+  display: block;
   position: absolute;
-  left: 0;
-  bottom: calc(100% + 10px);   /* 👈 shows ABOVE */
-  width: 260px;
+  top: 50%;
+  left: 100%;
+  margin-left: 10px;
+  transform: translateY(-50%);
+  width: min(260px, calc(var(--sidebar-w) - 56px));
+  max-width: calc(var(--sidebar-w) - 56px);
 
-  background: #111;
+  background: #111111;
   color: #f4f4f4;
   border: 1px solid rgba(255,255,255,.14);
   border-left: 4px solid var(--uga-red);
   border-radius: 4px;
-
   padding: 10px 12px;
   font-size: 12px;
-  line-height: 1.5;
-
-  box-shadow: 0 12px 28px rgba(0,0,0,.25);
+  line-height: 1.55;
+  white-space: normal;
+  word-break: break-word;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22);
 
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity .15s ease, transform .15s ease;
-
+  visibility: hidden;
   pointer-events: none;
   z-index: 9999;
+  transition: opacity .14s ease;
 }
 
-/* arrow */
-.tooltip-box::after {
+.tooltip-box::before {
   content: "";
   position: absolute;
-  top: 100%;
-  left: 10px;
-  border-width: 6px;
-  border-style: solid;
-  border-color: #111 transparent transparent transparent;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid #111111;
 }
 
-/* smooth fade in */
 .tooltip-wrap:hover .tooltip-box {
   opacity: 1;
-  transform: translateY(0);
+  visibility: visible;
 }
 /* ── Professor calendar modal ───────────────────────────────────────── */
 #prof-cal-modal {
@@ -784,17 +805,22 @@ html, body {
              oninput="syncVal('num_options','v-num-options',this.value)">
     </div>
     <div class="field">
-      <label>Block Min %
-        <span class="tooltip-wrap"> <span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Minimum % of sections that must be assigned to each time block. Prevents all sections clustering in one slot.</span></span>
+      <label>
+        <span class="tooltip-wrap"> 
+          <span class="tooltip-trigger">ℹ</span>
+          <span class="tooltip-box">Minimum % of sections that must be assigned to each time block. Prevents all sections clustering in one slot.</span>
+        </span>
+        <span class="label-text">Block Min %</span>
         <span class="val" id="v-block-min-pct">15%</span>
       </label>
       <input type="range" id="block_min_pct" min="0" max="30" step="1" value="15"
              oninput="syncVal('block_min_pct','v-block-min-pct',this.value+'%')">
     </div>
     <div class="field">
-      <label>Block Max %
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Maximum % of sections allowed in any single time block. Prevents overloading one time slot.</span></span>
         <span class="val" id="v-block-max-pct">30%</span>
+        <span class="label-text">Block Max%</span>
       </label>
       <input type="range" id="block_max_pct" min="20" max="60" step="1" value="30"
              oninput="syncVal('block_max_pct','v-block-max-pct',this.value+'%')">
@@ -805,89 +831,100 @@ html, body {
   <div class="sidebar-section">
     <h2>Soft Constraint Weights</h2>
     <div class="field">
-      <label>SC-1 Skeleton Slot Fidelity
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes moving a section away from its current time block. Higher = solver tries harder to keep existing schedule.</span></span>
         <span class="val" id="v-w-skeleton-slot">8</span>
+        <span class="label-text">SC-1 Skeleton Slot Fidelity</span>
       </label>
       <input type="range" id="w_skeleton_slot" min="0" max="50" value="8"
              oninput="syncVal('w_skeleton_slot','v-w-skeleton-slot',this.value)">
     </div>
     <div class="field">
-      <label>SC-2 Building Continuity
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes assigning a section to a different building than it currently uses. Higher = prefer keeping sections in same building.</span></span>
         <span class="val" id="v-w-skeleton-bldg">2</span>
+        <span class="label-text">SC-2 Building Continuity</span>
       </label>
       <input type="range" id="w_skeleton_bldg" min="0" max="30" value="2"
              oninput="syncVal('w_skeleton_bldg','v-w-skeleton-bldg',this.value)">
     </div>
     <div class="field">
-      <label>SC-4 Under-Enrollment Penalty
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes sections whose expected enrollment is below the threshold. Helps identify sections that may be too small to justify a room.</span></span>
         <span class="val" id="v-w-under-enroll">12</span>
+         <span class="label-text">SC-4 Under-Enrollment Penalty</span>
       </label>
       <input type="range" id="w_under_enroll" min="0" max="100" value="12"
              oninput="syncVal('w_under_enroll','v-w-under-enroll',this.value)">
     </div>
     <div class="field">
-      <label>Under-Enroll Threshold
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Sections below this fill % are flagged as under-enrolled. E.g. 60% means a section with 12/20 students is flagged.</span></span>
         <span class="val" id="v-ue-thresh">60%</span>
+        <span class="label-text">Under-Enroll Threshold</span>
       </label>
       <input type="range" id="under_enroll_threshold" min="0" max="100" step="5" value="60"
              oninput="syncVal('under_enroll_threshold','v-ue-thresh',this.value+'%')">
     </div>
     <div class="field">
-      <label>SC-5 Block Over-Cap Surplus
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes time blocks that exceed the max % cap. Keeps the schedule spread across all time slots.</span></span>
         <span class="val" id="v-w-block-over">18</span>
+        <span class="label-text">SC-5 Block Over-Cap Surplus</span>
       </label>
       <input type="range" id="w_block_over" min="0" max="100" value="18"
              oninput="syncVal('w_block_over','v-w-block-over',this.value)">
     </div>
     <div class="field">
-      <label>SC-6 Instructor Overload
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes instructors assigned more sections than the max. Higher = stronger push to distribute sections evenly.</span></span>
         <span class="val" id="v-w-instr-overload">20</span>
+         <span class="label-text">SC-6 Instructor Overload</span>
       </label>
       <input type="range" id="w_instr_overload" min="0" max="200" value="20"
              oninput="syncVal('w_instr_overload','v-w-instr-overload',this.value)">
     </div>
     <div class="field">
-      <label>Instructor Max Sections
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Target maximum number of sections per instructor. SC-6 penalizes going above this number.</span></span>
         <span class="val" id="v-instr-max">3</span>
+          <span class="label-text">Instructor Max Sections</span>
       </label>
       <input type="range" id="instructor_max_sections" min="1" max="8" value="3"
              oninput="syncVal('instructor_max_sections','v-instr-max',this.value)">
     </div>
     <div class="field">
-      <label>SC-8 Lower Level in Midday ↑
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Encourages lower-division courses (1000-2000) to be scheduled at midday. Higher enrollment courses benefit from peak attendance times.</span></span>
         <span class="val" id="v-w-lower-mid">5</span>
+        <span class="label-text">SC-8 Lower Level in Midday ↑</span>
       </label>
       <input type="range" id="w_lower_midday" min="0" max="50" value="5"
              oninput="syncVal('w_lower_midday','v-w-lower-mid',this.value)">
     </div>
     <div class="field">
-      <label>SC-8 Upper Level Off-Midday ↑
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Encourages upper-division and grad courses (3000+) away from peak midday slots, freeing them for larger lower-division sections.</span></span>
         <span class="val" id="v-w-upper-nomid">15</span>
+        <span class="label-text">SC-8 Upper Level Off-Midday ↑</span>
       </label>
       <input type="range" id="w_upper_nonmidday" min="0" max="100" value="15"
              oninput="syncVal('w_upper_nonmidday','v-w-upper-nomid',this.value)">
     </div>
     <div class="field">
-      <label>SC-9 Room Dead-Minutes
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Penalizes unused minutes inside booked room blocks. A 55-min class in an 80-min block wastes 25 minutes. Lower waste = higher room efficiency.</span></span>
         <span class="val" id="v-w-dead-min">3</span>
+        <span class="label-text">SC-9 Room Dead-Minutes</span>
       </label>
       <input type="range" id="w_dead_minutes" min="0" max="30" value="3"
              oninput="syncVal('w_dead_minutes','v-w-dead-min',this.value)">
     </div>
     <div class="field">
-      <label>SC-10 Professor Preferences
+      <label>
         <span class="tooltip-wrap"><span class="tooltip-trigger">ℹ</span><span class="tooltip-box">Weight applied to professor scheduling preferences (time of day, day pattern, course level). Higher = solver tries harder to honor preferences.</span></span>
         <span class="val" id="v-w-prof-pref">6</span>
+        <span class="label-text">SC-10 Professor Preferences</span>
       </label>
       <input type="range" id="w_prof_pref" min="0" max="50" value="6"
              oninput="syncVal('w_prof_pref','v-w-prof-pref',this.value)">
