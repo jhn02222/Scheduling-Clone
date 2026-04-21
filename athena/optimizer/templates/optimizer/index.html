@@ -386,11 +386,6 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
              oninput="syncVal('w_skeleton_bldg','v-w-skeleton-bldg',this.value)">
     </div>
     <div class="field">
-      <label>SC-3 Instructor Dead-Gap <span class="val" id="v-w-dead-gap">10</span></label>
-      <input type="range" id="w_dead_gap" min="0" max="100" value="10"
-             oninput="syncVal('w_dead_gap','v-w-dead-gap',this.value)">
-    </div>
-    <div class="field">
       <label>SC-4 Under-Enrollment Penalty <span class="val" id="v-w-under-enroll">12</span></label>
       <input type="range" id="w_under_enroll" min="0" max="100" value="12"
              oninput="syncVal('w_under_enroll','v-w-under-enroll',this.value)">
@@ -784,7 +779,6 @@ function collectWeights() {
     num_options:              get("num_options"),
     w_skeleton_slot:          get("w_skeleton_slot"),
     w_skeleton_bldg:          get("w_skeleton_bldg"),
-    w_dead_gap:               get("w_dead_gap"),
     under_enroll_threshold:   get("under_enroll_threshold") / 100,
     w_under_enroll:           get("w_under_enroll"),
     w_block_over:             get("w_block_over"),
