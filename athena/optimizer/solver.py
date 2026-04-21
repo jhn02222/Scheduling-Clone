@@ -130,7 +130,7 @@ DAY_FAMILIES_LIST = ["TR", "MWF", "MW", "OTHER"]
 _PAT_FAMILY = {p["pid"]: classify_day_family(p["days"]) for p in MEETING_PATTERNS}
 
 
-def valid_patterns_for_section(credits, skel_days, skel_duration, max_candidate=15):
+def valid_patterns_for_section(credits, skel_days, skel_duration, max_candidates=15):
     """
     Return pattern candidates ranked by proximity to skeleton.
     Only allows durations of 55 or 80. Filters by credit-hour rules.
@@ -266,7 +266,7 @@ def load_professor_preferences():
 
 def _build_section_entry(i, crn, course, title, instructor, days, duration_mins,
                           credits, cap, actual, exp, skel_block, skel_room, skel_bldg,
-                          db_section_id=None, max_candidate=15):
+                          db_section_id=None, max_candidates=15):
     cr = credits or 3
     # Snap duration to legal values
     dur = snap_duration(duration_mins)
@@ -288,7 +288,7 @@ def _build_section_entry(i, crn, course, title, instructor, days, duration_mins,
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
-def load_data_from_csv(csv_path, max_candidate=15):
+def load_data_from_csv(csv_path, max_candidates=15):
     df = pd.read_csv(csv_path)
     for col in ["COURSE_NUMBER", "ACADEMIC_PERIOD", "BEGIN_TIME", "END_TIME",
                 "MAXIMUM_ENROLLMENT", "ACTUAL_ENROLLMENT", "TOTAL_CREDITS_SECTION",
@@ -334,7 +334,7 @@ def load_data_from_csv(csv_path, max_candidate=15):
     return sections, rooms
 
 
-def load_data_from_db(db_path, semester, course_scope="core", max_candidate=15):
+def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15):
     CORE_COURSES = [1113, 2250, 2260, 2270, 2500, 2700, 3300]
     scope = normalize_course_scope(course_scope)
     from optimizer.models import CourseSection, Classroom
@@ -425,7 +425,7 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidate=15):
 
 
 def load_data(*, source="csv", csv_path=None, db_path=None,
-              semester="202602", course_scope="core", max_candidate=15):
+              semester="202602", course_scope="core", max_candidates=15):
     s = str(source).strip().lower()
     if s == "db": return load_data_from_db(db_path=db_path, semester=str(semester),
                                             course_scope=course_scope, max_candidates=max_candidates)
