@@ -748,13 +748,20 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
 
     for ri in range(nr):
         for day in ACTIVE_DAYS:
-            active = model.NewBoolVar(f"room_day_active_{ri}_{day}")
-            model.AddMaxEquality(
-                active,
-                [room_day_used[ri, day, b] for b in BLOCK_IDS],
-            )
-            obj.append(W_DEAD_MIN * BOOKING_WINDOW * len(BLOCK_IDS) * active)
-            sc9_terms += 1
+            for b in BLOCK_IDS:
+                v = room_day_used[ri, day, b]
+                # Only penalize tail waste inside occupied blocks
+                # Find the shortest duration among sections that could be in this block/room
+                tail_wastes = [
+                    s["tail_waste"]
+                    for s in sections
+                    if day in sec_day_map[s["id"]] and (s["id"], ri, b) in assign
+                ]
+                if tail_wastes:
+                    avg_tail = sum(tail_wastes) // len(tail_wastes)
+                    if avg_tail > 0:
+                        obj.append(W_DEAD_MIN * avg_tail * v)
+                        sc9_terms += 1
 
     log_fn(f"  SC-9: {sc9_terms} active-room-day terms added.")
 
@@ -1009,24 +1016,11 @@ def analyze(solution, sections, rooms, weights=None):
             if block in block_map:
                 slot = dict(block_map[block])
             else:
-                slot = {
-                    "start": start_min,
-                    "booking_end": booking_end,
-                    "actual_end": start_min,
-                    "tail_waste": 0,
-                    "gap_dead": BOOKING_WINDOW,
-                    "slot_dead": BOOKING_WINDOW,
-                    "course": None,
-                    "crn": None,
-                    "instructor": "",
-                    "duration_mins": 0,
-                    "block": block,
-                    "is_idle": True,
-                }
+                continue
 
             rs["days"][day].append(slot)
             rs["total_dead"] += slot["slot_dead"]
-            rs["total_booked"] += BOOKING_WINDOW
+            rs["total_booked"] += slot["duration_mins"]  
             total_dead_minutes += slot["slot_dead"]
 
     # Convert defaultdict to plain dict for JSON serialisation
