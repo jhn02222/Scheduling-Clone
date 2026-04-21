@@ -12,98 +12,169 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --uga-red:        #BA0C2F;
-  --uga-red-dark:   #8B0020;
-  --uga-red-glow:   rgba(186,12,47,0.25);
-  --uga-black:      #0D0D0D;
-  --uga-silver:     #C0C0C0;
-  --panel-bg:       #141414;
-  --panel-border:   rgba(186,12,47,0.30);
-  --surface:        #1C1C1C;
-  --surface-2:      #242424;
-  --text:           #F0EDE8;
-  --text-muted:     #8A8580;
-  --accent-green:   #22c55e;
-  --accent-amber:   #f59e0b;
-  --accent-red:     #ef4444;
-  --radius:         6px;
-  --sidebar-w:      320px;
+  --uga-red: #ba0c2f;
+  --uga-red-dark: #9e0b26;
+  --uga-black: #111111;
+  --uga-black-2: #1b1b1b;
+  --uga-white: #ffffff;
+  --uga-offwhite: #f7f7f5;
+  --uga-border: #d9d9d9;
+  --uga-border-dark: #bfbfbf;
+  --text: #181818;
+  --text-soft: #5c5c5c;
+  --surface: #ffffff;
+  --surface-alt: #f3f3f1;
+  --surface-dark: #111111;
+  --surface-dark-2: #1f1f1f;
+  --panel-border: rgba(0,0,0,0.1);
+  --accent-green: #2e7d32;
+  --accent-amber: #b26a00;
+  --accent-red: #c62828;
+  --radius: 4px;
+  --sidebar-w: 320px;
 }
 
-html, body { height: 100%; background: var(--uga-black); color: var(--text);
-             font-family: 'Inter', sans-serif; font-size: 14px; overflow: hidden; }
+html, body {
+  height: 100%;
+  background: var(--uga-offwhite);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
 
 /* ── Layout ──────────────────────────────────────────────────────────── */
 #shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
 #sidebar {
-  background: var(--panel-bg);
-  border-right: 1px solid var(--panel-border);
-  display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden;
+  background: var(--uga-white);
+  border-right: 1px solid var(--uga-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #sidebar-header {
-  background: var(--uga-red);
-  padding: 18px 20px 14px;
-  border-bottom: 2px solid var(--uga-red-dark);
-  display: flex; align-items: center; gap: 12px;
-  position: sticky; top: 0; z-index: 10;
+  background: var(--uga-black);
+  color: var(--uga-white);
+  padding: 20px 22px 16px;
+  border-bottom: 4px solid var(--uga-red);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
-#sidebar-header .bulldog { font-size: 28px; }
+
 #sidebar-header h1 {
   font-family: 'DM Serif Display', serif;
-  font-size: 15px; line-height: 1.2;
+  font-size: 20px;
+  line-height: 1.1;
   color: #fff;
 }
-#sidebar-header h1 span { display: block; font-size: 11px; font-family: 'Inter', sans-serif;
-                           opacity: .75; font-weight: 400; margin-top: 2px; }
 
+#sidebar-header h1 span {
+  display: block;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  opacity: .8;
+  font-weight: 500;
+  margin-top: 5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 .sidebar-section {
   padding: 14px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.sidebar-section h2 {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--uga-silver); margin-bottom: 12px; opacity: .7;
+.sidebar-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--uga-border);
 }
 
-.field { margin-bottom: 10px; }
-.field label {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 12px; color: var(--text-muted); margin-bottom: 4px;
+.sidebar-section h2 {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--uga-red);
+  margin-bottom: 12px;
+  font-weight: 700;
 }
+
+.field label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
 .field label .val {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; color: var(--uga-silver);
-  background: var(--surface-2); padding: 1px 6px; border-radius: 3px;
-  min-width: 38px; text-align: right;
+  font-size: 11px;
+  color: var(--uga-black);
+  background: #f1f1f1;
+  border: 1px solid var(--uga-border);
+  padding: 2px 6px;
+  border-radius: 2px;
+  min-width: 38px;
+  text-align: right;
 }
-.field input[type=range] {
-  width: 100%; accent-color: var(--uga-red); cursor: pointer;
-  height: 4px;
+
+.field input[type=number],
+#opt-select {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--uga-border-dark);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
 }
-.field input[type=number] {
-  width: 100%; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1);
-  border-radius: var(--radius); color: var(--text); padding: 5px 8px;
-  font-size: 13px; font-family: 'JetBrains Mono', monospace;
+
+.field input[type=number]:focus,
+#opt-select:focus {
+  outline: none;
+  border-color: var(--uga-red);
 }
-.field input[type=number]:focus { outline: none; border-color: var(--uga-red); }
+.field { margin-bottom: 10px; }
+
 
 #run-btn {
-  margin: 14px 18px 18px;
+  margin: 18px;
   width: calc(100% - 36px);
   background: var(--uga-red);
-  color: #fff; border: none; border-radius: var(--radius);
-  padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  transition: background .2s, box-shadow .2s;
-  letter-spacing: .04em;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: background .2s, transform .08s ease;
 }
-#run-btn:hover { background: var(--uga-red-dark); box-shadow: 0 0 18px var(--uga-red-glow); }
-#run-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#run-btn:hover {
+  background: var(--uga-red-dark);
+}
+
+#run-btn:active {
+  transform: translateY(1px);
+}
+
+#run-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 
 #log-box {
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
@@ -122,28 +193,48 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 }
 
 #topbar {
-  background: var(--panel-bg); border-bottom: 1px solid var(--panel-border);
-  padding: 0 24px;
-  display: flex; align-items: center; gap: 0;
-  flex-shrink: 0; height: 48px;
+  background: var(--uga-black);
+  border-bottom: 4px solid var(--uga-red);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  height: 56px;
+}
+
+.tab-btn {
+  height: 56px;
+  padding: 0 18px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(255,255,255,.12);
+  color: rgba(255,255,255,.92);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background .2s, color .2s;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  background: var(--uga-red);
+  color: #fff;
+}
+
+.tab-btn.active {
+  background: var(--uga-red);
+  color: #fff;
 }
 #topbar h2 {
   font-family: 'DM Serif Display', serif;
   font-size: 18px; color: var(--text);
   margin-right: auto; padding-right: 24px;
 }
-
-.tab-btn {
-  height: 48px; padding: 0 10px;
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--text-muted); font-size: 12px; cursor: pointer;
-  display: flex; align-items: center; gap: 6px;
-  transition: color .15s, border-color .15s;
-  white-space: nowrap;
-}
-.tab-btn:hover    { color: var(--text); }
-.tab-btn.active   { color: var(--uga-red); border-bottom-color: var(--uga-red); }
-
 #opt-selector {
   margin-left: auto; display: flex; align-items: center; gap: 8px;
 }
@@ -171,13 +262,26 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 /* ── Stat cards ──────────────────────────────────────────────────────── */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 12px; margin-bottom: 20px; }
 .stat-card {
-  background: var(--surface); border: 1px solid rgba(255,255,255,.07);
-  border-radius: var(--radius); padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--uga-border);
+  border-top: 4px solid var(--uga-red);
+  border-radius: 0;
+  padding: 16px 18px;
 }
-.stat-card .lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+
+.stat-card .lbl {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+
 .stat-card .val {
   font-family: 'DM Serif Display', serif;
-  font-size: 28px; color: var(--text);
+  font-size: 30px;
+  color: var(--text);
 }
 .stat-card .val.ok   { color: var(--accent-green); }
 .stat-card .val.warn { color: var(--accent-amber); }
@@ -187,14 +291,25 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 /* ── Tables ──────────────────────────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .data-table th {
-  text-align: left; padding: 7px 10px;
-  font-family: 'JetBrains Mono', monospace; font-size: 10px;
-  letter-spacing: .08em; text-transform: uppercase;
-  color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.08);
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--uga-red);
+  border-bottom: none;
 }
-.data-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04); }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(255,255,255,.03); }
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #ececec;
+  color: var(--text);
+}
+
+.data-table tr:hover td {
+  background: #faf8f8;
+}
 .badge {
   display: inline-block; padding: 2px 7px; border-radius: 20px;
   font-size: 10px; font-weight: 600; letter-spacing: .04em;
@@ -331,9 +446,13 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 .section-title:first-child { margin-top: 0; }
 
 .card-wrap {
-  background: var(--surface); border: 1px solid rgba(255,255,255,.07);
-  border-radius: var(--radius); overflow: hidden; margin-bottom: 18px;
+  background: #fff;
+  border: 1px solid var(--uga-border);
+  border-radius: 0;
+  overflow: hidden;
+  margin-bottom: 18px;
 }
+
 
 /* ── Tooltips ────────────────────────────────────────────────────────── */
 .tooltip-wrap { position: relative; display: inline-block; margin-left: 4px; cursor: help; }
@@ -381,6 +500,63 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 }
 .prof-cal-event .pce-course { font-weight: 600; color: #0f172a; }
 .prof-cal-event .pce-room { color: #334155; font-size: 10px; }
+
+.bulldog-mark {
+  width: 14px;
+  height: 48px;
+  background: var(--uga-red);
+  flex-shrink: 0;
+}
+#placeholder .icon-placeholder {
+  width: 72px;
+  height: 4px;
+  background: var(--uga-red);
+  margin-bottom: 4px;
+}
+.btn-primary {
+  background: var(--uga-red);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: var(--uga-red-dark);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--uga-black);
+  border: 1px solid var(--uga-border-dark);
+  border-radius: 3px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  border-color: var(--uga-red);
+  color: var(--uga-red);
+}
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 24px;
+  color: var(--text);
+  margin-bottom: 14px;
+  margin-top: 22px;
+}
+
+#content-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  background: var(--uga-offwhite);
+}
 </style>
 </head>
 <body>
@@ -389,8 +565,8 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 <!-- ══════════════════════════════════════════════════════════ SIDEBAR -->
 <aside id="sidebar">
   <div id="sidebar-header">
-    <div class="bulldog">🏛️</div>
-    <h1>Math Schedule Optimizer<span>Athena · Phase 1</span></h1>
+    <div class="bulldog-mark"></div>
+  <h1>Athena<span>UGA Math Schedule Optimizer</span></h1>
   </div>
 
   <!-- General -->
@@ -517,21 +693,20 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
     </div>
   </div>
 
-  <button id="run-btn" onclick="runOptimizer()">▶ Run Optimizer</button>
-
+  <button id="run-btn" onclick="runOptimizer()">Run Optimizer</button>
   <div id="log-box">Ready. Configure weights and press Run.</div>
 </aside>
 
 <!-- ══════════════════════════════════════════════════════════ MAIN -->
 <main id="main">
   <div id="topbar">
-    <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary',this)">📊 Summary</button>
-    <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar',this)">📅 Calendar</button>
-    <button class="tab-btn" data-tab="gaps"     onclick="switchTab('gaps',this)">⏱ Dead Minutes</button>
-    <button class="tab-btn" data-tab="enroll"   onclick="switchTab('enroll',this)">📉 Enrollment</button>
-    <button class="tab-btn" data-tab="instrs"   onclick="switchTab('instrs',this)">👤 Instructors</button>
-    <button class="tab-btn" data-tab="profs"    onclick="switchTab('profs',this)">👨‍🏫 Professors</button>
-    <button class="tab-btn" data-tab="saved" onclick="switchTab('saved',this)">💾 Saved</button>
+    <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary',this)">Summary</button>
+    <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar',this)">Calendar</button>
+    <button class="tab-btn" data-tab="gaps" onclick="switchTab('gaps',this)">Dead Minutes</button>
+    <button class="tab-btn" data-tab="enroll" onclick="switchTab('enroll',this)">Enrollment</button>
+    <button class="tab-btn" data-tab="instrs" onclick="switchTab('instrs',this)">Instructors</button>
+    <button class="tab-btn" data-tab="profs" onclick="switchTab('profs',this)">Professors</button>
+    <button class="tab-btn" data-tab="saved" onclick="switchTab('saved',this)">Saved</button>
     
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
@@ -551,7 +726,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
 
     <!-- placeholder -->
     <div id="placeholder">
-      <div class="icon">🎓</div>
+     <div class="icon-placeholder"></div>
       <p>Configure constraint weights in the sidebar, then press <strong>Run Optimizer</strong> to generate schedule options.</p>
     </div>
 
@@ -757,7 +932,7 @@ html, body { height: 100%; background: var(--uga-black); color: var(--text);
               <button type="button" onclick="saveProfPrefs()" style="
                 background:var(--uga-red);color:#fff;border:none;
                 border-radius:var(--radius);padding:8px 16px;
-                font-size:13px;cursor:pointer">💾 Save Preferences</button>
+                font-size:13px;cursor:pointer">Save Preferences</button>
             </div>
           </form>
         </div>
@@ -908,7 +1083,7 @@ function switchTab(name, btn) {
 /* ── Run optimizer ──────────────────────────────────────────────────── */
 async function runOptimizer() {
   const btn = document.getElementById('run-btn');
-  btn.disabled = true; btn.textContent = '⏳ Running…';
+  btn.disabled = true; btn.textContent = 'Running...';
   const log = document.getElementById('log-box');
   log.textContent = '';
 
@@ -942,12 +1117,12 @@ async function pollStatus() {
     clearInterval(_polling);
     _results = data.results || [];
     const btn = document.getElementById('run-btn');
-    btn.disabled = false; btn.textContent = '▶ Run Optimizer';
+    btn.disabled = false; btn.textContent = 'Run Optimizer';
     loadResults();
   } else if (data.status === 'error') {
     clearInterval(_polling);
     const btn = document.getElementById('run-btn');
-    btn.disabled = false; btn.textContent = '▶ Run Optimizer';
+    btn.disabled = false; btn.textContent = 'Run Optimizer';
   }
 }
 
