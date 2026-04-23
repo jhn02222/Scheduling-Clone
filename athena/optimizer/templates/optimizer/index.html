@@ -1753,6 +1753,7 @@ html, body {
 let _results   = [];   // array of {label, score, stats}
 let _activeOpt = 0;
 let _polling   = null;
+let _editorInitialized = false;  // ADD THIS — prevents tab switch from wiping editor state
 
 const DAYS    = ["M","T","W","R","F"];
 const DAY_LBL = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
@@ -1870,19 +1871,22 @@ async function pollStatus() {
 /* ── Load results into UI ───────────────────────────────────────────── */
 function loadResults() {
   if (!_results.length) return;
+
   const sel = document.getElementById('opt-select');
   sel.innerHTML = _results.map((r,i) =>
     `<option value="${i}">${r.label} (score: ${r.score})</option>`
   ).join('');
   document.getElementById('opt-selector').style.display = 'flex';
-  document.getElementById('save-btn').style.display = 'block';  // ← add this
-  _activeOpt = 0;
+  document.getElementById('save-btn').style.display     = 'block';
+
+  _activeOpt         = 0;
+  _editorInitialized = false;  // new solver run — reset editor so it loads fresh data
+
   renderAll();
-  
+
   const summary = document.querySelector('.tab-btn[data-tab="summary"]');
   if (summary) switchTab('summary', summary);
 }
-
 function renderAll() {
   _activeOpt = parseInt(document.getElementById('opt-select').value);
   const r = _results[_activeOpt];
@@ -2322,7 +2326,9 @@ function switchTab(name, btn) {
   if (name === 'profs') loadProfessors();
   if (name === 'saved') loadSavedSchedules();
   if (name === 'courses') loadCourses();
-   if (name === 'editor') initEditor();
+  if (name === 'editor' && !_editorInitialized && _results.length) {
+    initEditor();
+  }
 }
 /* ── Saved Schedules ────────────────────────────────────────────────── */
 async function loadSavedSchedules() {
@@ -2366,7 +2372,6 @@ async function loadSavedSchedule(id, name) {
   const data = await resp.json();
   if (!data.ok) return;
 
-  // Restore into results so all tabs work
   _results = [{
     label: data.label,
     score: data.score,
@@ -2382,21 +2387,22 @@ async function loadSavedSchedule(id, name) {
 
   renderAll();
 
-  // If this schedule has editor data, pre-load it into the editor state
   if (data.is_edited && data.sections_snapshot && data.sections_snapshot.length) {
+    // Restore the edited version into the editor
     initEditorFromLoaded(
       data.label,
       data.score,
       data.sections_snapshot,
       data.editor_overrides || {}
     );
+  } else {
+    // Plain solver schedule — reset editor so it re-initializes from stats on next visit
+    _editorInitialized = false;
   }
 
-  // Switch to summary tab
   const summaryBtn = document.querySelector('.tab-btn[data-tab="summary"]');
   if (summaryBtn) switchTab('summary', summaryBtn);
 }
-
 async function deleteSavedSchedule(id) {
   if (!confirm('Delete this saved schedule?')) return;
   await fetch(`/schedules/${id}/delete/`, {
@@ -2781,13 +2787,23 @@ function initEditor() {
   const r = _results[_activeOpt];
   if (!r) return;
 
-  _editorLabel = r.label || 'Schedule';
-  _editorScore = r.score || '';
+  _editorLabel       = r.label || 'Schedule';
+  _editorScore       = r.score  || '';
+  _editorInitialized = true;   // mark as initialized
 
-  // Build flat section list from calendar (deduplicated by sid)
-  const cal = r.stats.calendar || [];
+  const BLOCK_START_TO_ID = {
+    [8*60]:     0,
+    [9*60+55]:  1,
+    [11*60+35]: 2,
+    [13*60+15]: 3,
+    [14*60+55]: 4,
+    [16*60+35]: 5,
+  };
+
+  const cal  = r.stats.calendar || [];
   const seen = new Set();
   _editorSections = [];
+
   cal.forEach(ev => {
     if (seen.has(ev.sid)) return;
     seen.add(ev.sid);
@@ -2797,7 +2813,7 @@ function initEditor() {
       course:     ev.course,
       courseName: `MATH ${ev.course}`,
       instructor: ev.instructor,
-      block:      Math.round((ev.start - 8*60) / 100) || 0, // approximate
+      block:      BLOCK_START_TO_ID[ev.start] ?? 0,
       days:       ev.days,
       duration:   String(ev.duration_mins || 55),
       room:       ev.room,
@@ -2807,54 +2823,36 @@ function initEditor() {
     });
   });
 
-  // Fix block from BLOCK_HHMM mapping
- _editorSections.forEach(s => {
-  const startMin = (r.stats.calendar || []).find(ev => ev.sid === s.sid)?.start;
-  
-  if (startMin !== undefined) {
-    const blockMap = {
-      [8*60]: 0,
-      [9*60+55]: 1,
-      [11*60+35]: 2,
-      [13*60+15]: 3,
-      [14*60+55]: 4,
-      [16*60+35]: 5
-    };
-    
-    s.block = blockMap[startMin] ?? 0;
-  }
-});
-
-  _editorEdits = {};
+  _editorEdits     = {};
   _editorActiveSid = null;
 
-  // Build instructor list from existing sections + professors
-  const instrSet = new Set(_editorSections.map(s => s.instructor).filter(i => i !== 'TBA'));
+  const instrSet = new Set(_editorSections.map(s => s.instructor).filter(i => i && i !== 'TBA'));
   instrSet.add('TBA');
   _editorProfList = [...instrSet].sort();
 
-  // Build room list
   const roomSet = new Set(_editorSections.map(s => s.room).filter(Boolean));
   _editorRoomList = [...roomSet].sort();
 
-  // Build course filter options
   const courseSet = new Set(_editorSections.map(s => s.course));
   const courseFilter = document.getElementById('editor-course-filter');
   courseFilter.innerHTML = '<option value="">All Courses</option>' +
     [...courseSet].sort((a,b)=>a-b).map(c => `<option value="${c}">MATH ${c}</option>`).join('');
 
-  document.getElementById('editor-label-display').textContent = _editorLabel;
+  document.getElementById('editor-label-display').textContent  = _editorLabel;
+  document.getElementById('editor-section-count').textContent  = `${_editorSections.length} sections`;
+  document.getElementById('editor-change-count').textContent   = '0';
 
   editorRenderList();
   editorShowEmpty();
 }
 
 function initEditorFromLoaded(label, score, sections, overrides) {
-  _editorLabel = label;
-  _editorScore = score;
-  _editorSections = sections;
-  _editorEdits = overrides || {};
-  _editorActiveSid = null;
+  _editorLabel       = label;
+  _editorScore       = score;
+  _editorSections    = sections;
+  _editorEdits       = overrides || {};
+  _editorActiveSid   = null;
+  _editorInitialized = true;   // mark as initialized so tab switch won't wipe it
 
   const courseSet = new Set(sections.map(s => s.course));
   const courseFilter = document.getElementById('editor-course-filter');
@@ -2868,11 +2866,13 @@ function initEditorFromLoaded(label, score, sections, overrides) {
   const roomSet = new Set(sections.map(s => s.room).filter(Boolean));
   _editorRoomList = [...roomSet].sort();
 
-  document.getElementById('editor-label-display').textContent = label;
+  document.getElementById('editor-label-display').textContent  = label;
+  document.getElementById('editor-section-count').textContent  = `${sections.length} sections`;
+  document.getElementById('editor-change-count').textContent   = String(Object.keys(_editorEdits).length);
+
   editorRenderList();
   editorShowEmpty();
 }
-
 /* ── Render section list ─────────────────────────────────────────────── */
 function editorFilter() {
   editorRenderList();
