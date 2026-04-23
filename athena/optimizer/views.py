@@ -184,6 +184,9 @@ def export_csv(request):
     sol     = result["solution"]
     stats   = result["stats"]
 
+    # Normalize assignment keys — JSON round-trip converts int keys to strings
+    assignment = {int(k): v for k, v in sol["assignment"].items()}
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Option", "Score", "CRN", "Course", "Instructor",
@@ -194,8 +197,10 @@ def export_csv(request):
         if key in seen:
             continue
         seen.add(key)
-        asgn = sol["assignment"][ev["sid"]]
-        b    = asgn["block"]
+        asgn = assignment.get(ev["sid"])
+        if not asgn:
+            continue
+        b = asgn["block"]
         writer.writerow([sol["label"], sol["score"], ev["crn"],
                          f"MATH {ev['course']}", ev["instructor"],
                          ev["days"], b, BLOCK_LABEL[b], asgn["room"],
@@ -204,7 +209,7 @@ def export_csv(request):
     output.seek(0)
     resp = HttpResponse(output, content_type="text/csv")
     resp["Content-Disposition"] = (
-        f'attachment; filename="schedule_{sol["label"].replace(" ", "_")}.csv"'
+        f'attachment; filename="schedule_{sol["label"].replace(" ","_")}.csv"'
     )
     return resp
 
