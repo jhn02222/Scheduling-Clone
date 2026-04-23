@@ -414,6 +414,7 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
     course_cfgs = load_course_configs()
     print(f"  Course configs loaded: {len(course_cfgs)} — {list(course_cfgs.keys())}")
     print(f"  Inactive: {[k for k,v in course_cfgs.items() if not v['is_active']]}")
+
     # Step 1: Remove inactive courses
     if course_cfgs:
         before = len(sections)
@@ -430,7 +431,7 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
         trimmed = []
         for s in sections:
             cfg = course_cfgs.get(s["course"], {})
-            max_s = cfg.get('max_sections')
+            max_s = cfg.get("max_sections")
             if max_s is not None and course_counts[s["course"]] >= max_s:
                 continue
             trimmed.append(s)
@@ -441,18 +442,16 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
         sections = trimmed
 
     # Step 3: Generate placeholder sections to meet min_sections
-    # Collect active professor names for round-robin assignment to placeholders
     if course_cfgs:
         try:
             from optimizer.models import Professor as ProfModel
             active_prof_names = [
                 f"{p.last_name}, {p.first_name}".strip(", ")
-                for p in ProfModel.objects.filter(is_active=True).order_by('last_name', 'first_name')
+                for p in ProfModel.objects.filter(is_active=True).order_by("last_name", "first_name")
             ]
         except Exception:
             active_prof_names = []
 
-        # Track which professors are already scheduled so we can distribute load
         prof_load = {name: 0 for name in active_prof_names}
         for s in sections:
             if s["instructor"] != "TBA" and s["instructor"] in prof_load:
@@ -465,7 +464,9 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
 
         placeholder_count = 0
         for course_num, cfg in course_cfgs.items():
-            min_s = cfg.get('min_sections')
+            if not cfg.get("is_active", True):
+                continue
+            min_s = cfg.get("min_sections")
             if min_s is None:
                 continue
             current = sections_by_course.get(course_num, [])
@@ -476,7 +477,6 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
             print(f"  MATH {course_num}: need {min_s}, have {len(current)}, "
                   f"generating {shortage} placeholder section(s).")
 
-            # Use typical values from existing sections of this course if available
             if current:
                 ref = current[0]
                 ref_credits = ref["credits"]
@@ -486,21 +486,17 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
                 ref_dur     = ref["skel_duration"]
                 ref_block   = ref["skel_block"]
             else:
-                # No existing sections — use sensible defaults
                 ref_credits = 3
                 ref_cap     = 30
                 ref_exp     = 25
                 ref_days    = "TR"
                 ref_dur     = 80
-                ref_block   = 1  # 9:55 AM
+                ref_block   = 1
 
             for j in range(shortage):
-                # Pick the active professor with the lowest current load
-                if active_prof_names:
-                    instructor = min(prof_load, key=prof_load.get)
+                instructor = min(prof_load, key=prof_load.get) if active_prof_names else "TBA"
+                if instructor != "TBA":
                     prof_load[instructor] += 1
-                else:
-                    instructor = "TBA"
 
                 sec = _build_section_entry(
                     i=len(sections) + 20000 + placeholder_count,
@@ -515,7 +511,7 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
                     actual=0,
                     exp=ref_exp,
                     skel_block=ref_block,
-                    skel_room=None,   # no room preference — solver picks freely
+                    skel_room=None,
                     skel_bldg="",
                     db_section_id=None,
                     max_candidates=max_candidates,
@@ -529,32 +525,97 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
     # ── Floating sections for active professors not in any surviving section ──
     try:
         from optimizer.models import Professor as ProfModel
-        active_names = set(f"{p.last_name}, {p.first_name}".strip(", ")
-                           for p in ProfModel.objects.filter(is_active=True))
+
+        # Track current section counts per course for shortage calculation
+        sections_by_course_now = defaultdict(int)
+        for s in sections:
+            sections_by_course_now[s["course"]] += 1
+
+        def get_most_needed_course():
+            """Return the active course with the largest shortage vs min_sections.
+            Falls back to the active course with the most existing sections."""
+            best_course = None
+            best_shortage = -1
+            for cn, cfg in course_cfgs.items():
+                if not cfg.get("is_active", True):
+                    continue
+                min_s = cfg.get("min_sections")
+                if min_s is None:
+                    continue
+                shortage = min_s - sections_by_course_now.get(cn, 0)
+                if shortage > best_shortage:
+                    best_shortage = shortage
+                    best_course = cn
+            # No course has unmet min_sections — fall back to most common active course
+            if best_course is None:
+                active_courses = [
+                    (cn, sections_by_course_now.get(cn, 0))
+                    for cn, cfg in course_cfgs.items()
+                    if cfg.get("is_active", True)
+                ]
+                if active_courses:
+                    best_course = max(active_courses, key=lambda x: x[1])[0]
+            return best_course
+
+        active_names = set(
+            f"{p.last_name}, {p.first_name}".strip(", ")
+            for p in ProfModel.objects.filter(is_active=True)
+        )
         scheduled = {s["instructor"] for s in sections if s["instructor"] != "TBA"}
+
         for name in active_names - scheduled:
             parts = name.split(", ", 1)
             last = parts[0]; first = parts[1] if len(parts) > 1 else ""
             from optimizer.models import Professor as PM, Schedule as SM
             try:
                 prof = PM.objects.get(last_name=last, first_name=first)
-                sched = SM.objects.filter(professor=prof,
+                sched = SM.objects.filter(
+                    professor=prof,
                     course_section__semester=semester,
-                ).select_related('course_section__course').first()
+                ).select_related("course_section__course").first()
+
                 if sched:
-                    cs2 = sched.course_section; course = cs2.course.course_number
-                    cap = max(cs2.maximum_enrollment or 20, 1)
-                    exp = max(1, round(HIST_FILL.get(course, 0.85) * cap))
-                    credits = cs2.course.max_credits or cs2.course.min_credits or 3
+                    course = sched.course_section.course.course_number
+                    cap    = max(sched.course_section.maximum_enrollment or 20, 1)
+                    exp    = max(1, round(HIST_FILL.get(course, 0.85) * cap))
+                    credits = (sched.course_section.course.max_credits
+                               or sched.course_section.course.min_credits or 3)
+
+                    # If that course is deactivated, reassign to most-needed active course
+                    if course in course_cfgs and not course_cfgs[course].get("is_active", True):
+                        new_course = get_most_needed_course()
+                        if new_course is None:
+                            print(f"  Skipping {name} — course {course} inactive and no active course available")
+                            continue
+                        print(f"  {name}: course {course} inactive → reassigning to MATH {new_course}")
+                        course  = new_course
+                        cap     = 20
+                        exp     = max(1, round(HIST_FILL.get(course, 0.85) * cap))
+                        credits = 3
                 else:
-                    course = 1113; cap = 20; exp = 17; credits = 3
+                    # No schedule found — assign to most-needed active course
+                    course = get_most_needed_course()
+                    if course is None:
+                        print(f"  Skipping {name} — no schedule and no active course available")
+                        continue
+                    cap = 20; exp = 17; credits = 3
+
             except Exception:
-                course = 1113; cap = 20; exp = 17; credits = 3
-            sec = _build_section_entry(len(sections) + 10000, 99000 + len(sections),
-                  course, "Floating Section", name, "TR", 80, credits, cap, 0, exp, 1, None, "",
-                  max_candidates=max_candidates)
+                course = get_most_needed_course()
+                if course is None:
+                    print(f"  Skipping {name} — exception and no active course available")
+                    continue
+                cap = 20; exp = 17; credits = 3
+
+            sec = _build_section_entry(
+                len(sections) + 10000, 99000 + len(sections),
+                course, "Floating Section", name, "TR", 80, credits,
+                cap, 0, exp, 1, None, "",
+                max_candidates=max_candidates)
             sections.append(sec)
-            print(f"  Injected floating section for active professor: {name}")
+            sections_by_course_now[course] += 1  # keep shortage counts accurate
+            print(f"  Injected floating section for {name} → MATH {course}")
+
     except Exception as e:
         print(f"  Warning: could not inject floating sections: {e}")
 
