@@ -40,7 +40,29 @@ DEFAULT_WEIGHTS = {
     "w_prof_pref":             6,
 }
 
+def _fmt_minutes(total_minutes):
+    hour24 = total_minutes // 60
+    minute = total_minutes % 60
+    suffix = "AM" if hour24 < 12 else "PM"
+    hour12 = hour24 % 12
+    if hour12 == 0:
+        hour12 = 12
+    return f"{hour12}:{minute:02d} {suffix}"
 
+
+def _time_range_from_start_and_duration(start_min, duration_min):
+    if start_min is None:
+        return ""
+    try:
+        start_min = int(start_min)
+    except (TypeError, ValueError):
+        return ""
+    try:
+        duration_min = int(duration_min)
+    except (TypeError, ValueError):
+        duration_min = 50  # fallback if duration missing
+    end_min = start_min + duration_min
+    return f"{_fmt_minutes(start_min)} - {_fmt_minutes(end_min)}"
 def _log(msg):
     with _LOCK:
         _JOB["log"].append(msg)
@@ -190,22 +212,51 @@ def export_csv(request):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Option", "Score", "CRN", "Course", "Instructor",
-                     "Days", "Block", "Time", "Room", "Moved"])
+    writer.writerow([
+        "Option", "Score", "CRN", "Course", "Instructor",
+        "Days", "Block", "Start Time", "End Time", "Time", "Room", "Moved"
+    ])
+
     seen = set()
     for ev in sorted(stats["calendar"], key=lambda e: (e["course"], e["start"], e["crn"])):
         key = (ev["crn"], ev["course"])
         if key in seen:
             continue
         seen.add(key)
+
         asgn = assignment.get(ev["sid"])
         if not asgn:
             continue
+
+        start_min = ev.get("start")
+        duration_min = ev.get("duration", 50)
+
+        try:
+            end_min = int(start_min) + int(duration_min)
+        except (TypeError, ValueError):
+            end_min = None
+
+        start_str = _fmt_minutes(int(start_min)) if start_min is not None else ""
+        end_str = _fmt_minutes(end_min) if end_min is not None else ""
+        time_range = (
+            f"{start_str} - {end_str}" if start_str and end_str else start_str
+        )
+
         b = asgn["block"]
-        writer.writerow([sol["label"], sol["score"], ev["crn"],
-                         f"MATH {ev['course']}", ev["instructor"],
-                         ev["days"], b, BLOCK_LABEL[b], asgn["room"],
-                         "YES" if ev["moved"] else "no"])
+        writer.writerow([
+            sol["label"],
+            sol["score"],
+            ev["crn"],
+            f"MATH {ev['course']}",
+            ev["instructor"],
+            ev["days"],
+            b,
+            start_str,
+            end_str,
+            time_range,
+            asgn["room"],
+            "YES" if ev["moved"] else "no",
+        ])
 
     output.seek(0)
     resp = HttpResponse(output, content_type="text/csv")
@@ -213,7 +264,6 @@ def export_csv(request):
         f'attachment; filename="schedule_{sol["label"].replace(" ","_")}.csv"'
     )
     return resp
-
 
 def register(request):
     if request.method == "POST":
@@ -585,7 +635,6 @@ def load_editor(request, schedule_id):
 
 def export_editor_csv(request):
     """Export the manually edited schedule as CSV."""
-    # Get editor sections from POST body or from saved schedule
     if request.method == 'POST':
         body = json.loads(request.body or b'{}')
         sections = body.get('sections', [])
@@ -594,15 +643,22 @@ def export_editor_csv(request):
     else:
         return HttpResponse("Use POST", status=405)
 
-    BLOCK_TIMES = {
-        0: '8:15 AM', 1: '9:55 AM', 2: '11:35 AM',
-        3: '1:15 PM', 4: '2:55 PM', 5: '4:35 PM'
+    BLOCK_STARTS = {
+        0: 8 * 60 + 15,
+        1: 9 * 60 + 55,
+        2: 11 * 60 + 35,
+        3: 13 * 60 + 15,
+        4: 14 * 60 + 55,
+        5: 16 * 60 + 35,
     }
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Schedule", "Score", "CRN", "Course", "Instructor",
-                     "Days", "Block", "Time", "Room", "Duration", "Capacity", "Note"])
+    writer.writerow([
+        "Schedule", "Score", "CRN", "Course", "Instructor",
+        "Days", "Block", "Start Time", "End Time", "Time",
+        "Room", "Duration", "Capacity", "Note"
+    ])
 
     seen = set()
     for sec in sorted(sections, key=lambda s: (s.get('course', 0), s.get('block', 0))):
@@ -610,7 +666,22 @@ def export_editor_csv(request):
         if key in seen:
             continue
         seen.add(key)
-        block = sec.get('block', 0)
+
+        block = int(sec.get('block', 0))
+        start_min = BLOCK_STARTS.get(block)
+        duration_min = sec.get('duration', 50)
+
+        try:
+            duration_min = int(duration_min)
+        except (TypeError, ValueError):
+            duration_min = 50
+
+        end_min = start_min + duration_min if start_min is not None else None
+
+        start_str = _fmt_minutes(start_min) if start_min is not None else ""
+        end_str = _fmt_minutes(end_min) if end_min is not None else ""
+        time_range = f"{start_str} - {end_str}" if start_str and end_str else start_str
+
         writer.writerow([
             label,
             score,
@@ -619,14 +690,16 @@ def export_editor_csv(request):
             sec.get('instructor', 'TBA'),
             sec.get('days', ''),
             block,
-            BLOCK_TIMES.get(int(block), ''),
+            start_str,
+            end_str,
+            time_range,
             sec.get('room', ''),
-            sec.get('duration', ''),
+            duration_min,
             sec.get('capacity', ''),
             sec.get('note', ''),
         ])
 
     output.seek(0)
     resp = HttpResponse(output, content_type="text/csv")
-    resp["Content-Disposition"] = f'attachment; filename="edited_schedule.csv"'
+    resp["Content-Disposition"] = 'attachment; filename="edited_schedule.csv"'
     return resp

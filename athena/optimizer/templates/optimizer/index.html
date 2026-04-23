@@ -1802,6 +1802,7 @@ let _results   = [];   // array of {label, score, stats}
 let _activeOpt = 0;
 let _polling   = null;
 let _editorInitialized = false;  // ADD THIS — prevents tab switch from wiping editor state
+let _editorUsesLoadedSnapshot = false;
 
 const DAYS    = ["M","T","W","R","F"];
 const DAY_LBL = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
@@ -1929,6 +1930,7 @@ function loadResults() {
 
   _activeOpt         = 0;
   _editorInitialized = false;  // new solver run — reset editor so it loads fresh data
+  _editorUsesLoadedSnapshot = false;
 
   renderAll();
 
@@ -2200,18 +2202,33 @@ function renderEnroll(s) {
 function renderInstrs(s) {
   const tb = document.querySelector('#instrs-table tbody');
   const it = s.instr_table || {};
+  function computeEndTime(startLabel, duration) {
+    // Parse startLabel like '8:15 AM' to minutes
+    const [time, ampm] = startLabel.split(' ');
+    let [h, m] = time.split(':').map(Number);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    let startMins = h * 60 + m;
+    let endMins = startMins + (parseInt(duration) || 80);
+    let eh = Math.floor(endMins / 60);
+    let em = endMins % 60;
+    let ampm2 = eh >= 12 ? 'PM' : 'AM';
+    if (eh > 12) eh -= 12;
+    if (eh === 0) eh = 12;
+    return `${eh}:${em.toString().padStart(2, '0')} ${ampm2}`;
+  }
   tb.innerHTML = Object.entries(it).sort((a,b)=>b[1].length-a[1].length).map(([instr, sessions]) =>
     `<tr>
       <td><strong>${esc(instr)}</strong></td>
       <td>${sessions.length}</td>
-      <td>${sessions.map(se =>
-        `<span class="badge badge-ok" style="margin:1px">MATH ${se.course} · ${se.block_label}</span>`
-      ).join('')}</td>
+      <td>${sessions.map(se => {
+        const start = se.block_label;
+        const dur = se.duration || 80;
+        const end = computeEndTime(start, dur);
+        return `<span class="badge badge-ok" style="margin:1px">MATH ${se.course} · ${start}–${end}</span>`;
+      }).join('')}</td>
       <td>
-        <button onclick="openProfCal('${esc(instr)}')" style="
-          background:var(--surface-2);border:1px solid rgba(255,255,255,.1);
-          color:var(--text);border-radius:var(--radius);padding:3px 8px;
-          font-size:11px;cursor:pointer">📅 View</button>
+        <button onclick="openProfCal('${esc(instr)}')" style="background:var(--surface-2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:var(--radius);padding:3px 8px;font-size:11px;cursor:pointer">📅 View</button>
       </td>
     </tr>`
   ).join('');
@@ -2219,6 +2236,10 @@ function renderInstrs(s) {
 
 /* ── Export ─────────────────────────────────────────────────────────── */
 function exportCSV() {
+  if (_editorUsesLoadedSnapshot && _editorSections.length) {
+    editorExportCSV();
+    return;
+  }
   window.location = `/export/?opt=${_activeOpt}`;
 }
 
@@ -2446,6 +2467,7 @@ async function loadSavedSchedule(id, name) {
   } else {
     // Plain solver schedule — reset editor so it re-initializes from stats on next visit
     _editorInitialized = false;
+    _editorUsesLoadedSnapshot = false;
   }
 
   const summaryBtn = document.querySelector('.tab-btn[data-tab="summary"]');
@@ -2838,6 +2860,7 @@ function initEditor() {
   _editorLabel       = r.label || 'Schedule';
   _editorScore       = r.score  || '';
   _editorInitialized = true;   // mark as initialized
+  _editorUsesLoadedSnapshot = false;
 
   const BLOCK_START_TO_ID = {
     [8*60]:     0,
@@ -2901,6 +2924,7 @@ function initEditorFromLoaded(label, score, sections, overrides) {
   _editorEdits       = overrides || {};
   _editorActiveSid   = null;
   _editorInitialized = true;   // mark as initialized so tab switch won't wipe it
+  _editorUsesLoadedSnapshot = true;
 
   const courseSet = new Set(sections.map(s => s.course));
   const courseFilter = document.getElementById('editor-course-filter');
