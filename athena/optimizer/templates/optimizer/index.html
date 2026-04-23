@@ -2796,14 +2796,22 @@ function initEditor() {
   });
 
   // Fix block from BLOCK_HHMM mapping
-  _editorSections.forEach(s => {
-    // Derive block from start minute
-    const startMin = (r.stats.calendar || []).find(ev => ev.sid === s.sid)?.start;
-    if (startMin !== undefined) {
-      const blockMap = {8*60:0, 9*60+55:1, 11*60+35:2, 13*60+15:3, 14*60+55:4, 16*60+35:5};
-      s.block = blockMap[startMin] ?? 0;
-    }
-  });
+ _editorSections.forEach(s => {
+  const startMin = (r.stats.calendar || []).find(ev => ev.sid === s.sid)?.start;
+  
+  if (startMin !== undefined) {
+    const blockMap = {
+      [8*60]: 0,
+      [9*60+55]: 1,
+      [11*60+35]: 2,
+      [13*60+15]: 3,
+      [14*60+55]: 4,
+      [16*60+35]: 5
+    };
+    
+    s.block = blockMap[startMin] ?? 0;
+  }
+});
 
   _editorEdits = {};
   _editorActiveSid = null;
