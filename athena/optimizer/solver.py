@@ -412,7 +412,8 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
 
     # ── Apply course configs ──────────────────────────────────────────────────
     course_cfgs = load_course_configs()
-
+    print(f"  Course configs loaded: {len(course_cfgs)} — {list(course_cfgs.keys())}")
+    print(f"  Inactive: {[k for k,v in course_cfgs.items() if not v['is_active']]}")
     # Step 1: Remove inactive courses
     if course_cfgs:
         before = len(sections)
