@@ -221,6 +221,15 @@ html, body {
   gap: 0;
   flex-shrink: 0;
   height: 56px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+#topbar > * {
+  flex-shrink: 0;
 }
 
 .tab-btn {
@@ -239,8 +248,8 @@ html, body {
   align-items: center;
   transition: background .2s, color .2s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-
 .tab-btn:hover {
   background: var(--uga-red);
   color: #fff;
@@ -256,8 +265,13 @@ html, body {
   margin-right: auto; padding-right: 24px;
 }
 #opt-selector {
-  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
+
 /* Topbar selector */
 #opt-selector label {
   font-size: 12px;
@@ -284,6 +298,18 @@ html, body {
 #export-btn:hover {
   border-color: var(--uga-red);
   color: var(--uga-red);
+}
+
+#opt-select,
+#export-btn,
+#save-btn,
+.logout-link {
+  flex-shrink: 0;
+}
+
+#opt-select {
+  min-width: 220px;
+  max-width: 420px;
 }
 #opt-selector label,
 .blk-lbl,
