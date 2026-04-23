@@ -1,21 +1,257 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Register - Athena Scheduler</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
-        input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer; }
-        a { color: #2563eb; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register — Athena Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --uga-red: #ba0c2f;
+  --uga-red-dark: #9e0b26;
+  --uga-black: #111111;
+  --uga-white: #ffffff;
+  --uga-offwhite: #f7f7f5;
+  --uga-border: #d9d9d9;
+  --text: #181818;
+  --text-soft: #5c5c5c;
+}
+
+html, body {
+  height: 100%;
+  background: var(--uga-offwhite);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+
+body {
+  background-image:
+    linear-gradient(rgba(186,12,47,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(186,12,47,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.page::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--uga-red);
+}
+
+.card {
+  background: var(--uga-white);
+  border: 1px solid var(--uga-border);
+  border-top: 4px solid var(--uga-red);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+.card-header {
+  background: var(--uga-black);
+  padding: 28px 32px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 4px solid var(--uga-red);
+}
+
+.bulldog-mark {
+  width: 10px;
+  height: 44px;
+  background: var(--uga-red);
+  flex-shrink: 0;
+}
+
+.card-header h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.card-header h1 span {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+  margin-top: 5px;
+}
+
+.card-body {
+  padding: 32px;
+}
+
+.card-body p {
+  margin-bottom: 20px;
+}
+
+.card-body label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+}
+
+.card-body input[type="text"],
+.card-body input[type="password"],
+.card-body input[type="email"],
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--uga-border);
+  border-radius: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  appearance: none;
+}
+
+.card-body input[type="text"]:focus,
+.card-body input[type="password"]:focus,
+input[type="text"]:focus,
+input[type="password"]:focus {
+  border-color: var(--uga-red);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(186,12,47,0.08);
+}
+
+.card-body ul.errorlist {
+  list-style: none;
+  margin-bottom: 8px;
+}
+
+.card-body ul.errorlist li {
+  color: var(--uga-red);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.card-body .helptext {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-top: 4px;
+  display: block;
+  line-height: 1.5;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--uga-red);
+  color: #fff;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.08s;
+  margin-top: 8px;
+}
+
+.submit-btn:hover { background: var(--uga-red-dark); }
+.submit-btn:active { transform: translateY(1px); }
+
+.card-footer {
+  padding: 16px 32px;
+  border-top: 1px solid var(--uga-border);
+  background: var(--uga-offwhite);
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.card-footer a {
+  color: var(--uga-red);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.card-footer a:hover { text-decoration: underline; }
+
+.page-meta {
+  margin-top: 24px;
+  font-size: 11px;
+  color: #aaa;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+}
+
+.non-field-errors {
+  background: rgba(186,12,47,0.06);
+  border: 1px solid rgba(186,12,47,0.25);
+  border-left: 3px solid var(--uga-red);
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--uga-red);
+  font-weight: 600;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--uga-red);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--uga-border);
+}
+</style>
 </head>
 <body>
-    <h2>Create Account</h2>
-    <form method="post">
+<div class="page">
+  <div class="card">
+    <div class="card-header">
+      <div class="bulldog-mark"></div>
+      <h1>Create Account<span>UGA Math Schedule Optimizer</span></h1>
+    </div>
+    <div class="card-body">
+      {% if form.non_field_errors %}
+        <div class="non-field-errors">
+          {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+        </div>
+      {% endif %}
+      <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
-        <button type="submit">Register</button>
-    </form>
-    <p>Already have an account? <a href="/login/">Login here</a></p>
+        <button type="submit" class="submit-btn">Create Account</button>
+      </form>
+    </div>
+    <div class="card-footer">
+      Already have an account? <a href="/login/">Sign in here</a>
+    </div>
+  </div>
+  <p class="page-meta">Athena v2.0 · UGA Department of Mathematics</p>
+</div>
 </body>
 </html>
