@@ -8,7 +8,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('login/', auth_views.LoginView.as_view(template_name='optimizer/login.html'), name='login'),
-    path('logout/', LogoutView.as_view(next_page='/login/', http_method_names=['get', 'post']), name='logout'),
+   path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('run/', views.run_optimizer, name='run_optimizer'),
     path('status/', views.job_status, name='job_status'),

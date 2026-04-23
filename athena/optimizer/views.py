@@ -16,6 +16,7 @@ from .models import SavedSchedule
 from .solver import load_data, build_and_solve, analyze, BLOCK_LABEL, BLOCK_HHMM
 from django.views.decorators.http import require_http_methods
 from .models import Professor, ProfessorPreference, CourseConfig
+from django.contrib.auth import logout as auth_logout
 
 # ── In-process job state ─────────────────────────────────────────────────────
 _JOB = {"status": "idle", "log": [], "results": None, "error": None}
@@ -500,3 +501,6 @@ def course_detail_json(request, course_id):
     except CourseConfig.DoesNotExist:
         return JsonResponse({'ok': False}, status=404)
  
+def logout_view(request):
+    auth_logout(request)
+    return redirect('/login/')
