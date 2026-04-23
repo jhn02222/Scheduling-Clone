@@ -261,7 +261,29 @@ def load_professor_preferences():
     except Exception:
         return {}
 
-
+def load_course_configs():
+    """
+    Returns dict: course_number (int) -> config dict.
+    Safe to call even if the table doesn't exist yet.
+    """
+    try:
+        from optimizer.models import CourseConfig
+        configs = {}
+        for c in CourseConfig.objects.all():
+            configs[c.course_number] = {
+                'is_active':          c.is_active,
+                'min_sections':       c.min_sections,
+                'max_sections':       c.max_sections,
+                'banned_blocks':      c.get_banned_block_list(),
+                'max_per_block':      c.max_per_block,
+                'preferred_building': c.preferred_building,
+                'required_room_type': c.required_room_type,
+                'min_room_capacity':  c.min_room_capacity,
+            }
+        return configs
+    except Exception:
+        return {}
+ 
 # ── Section builder ───────────────────────────────────────────────────────────
 
 def _build_section_entry(i, crn, course, title, instructor, days, duration_mins,
@@ -388,7 +410,122 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
               max_candidates=max_candidates)
         if sec["valid_pids"]: sections.append(sec)
 
-    # Floating sections for active professors not in any surviving section
+    # ── Apply course configs ──────────────────────────────────────────────────
+    course_cfgs = load_course_configs()
+
+    # Step 1: Remove inactive courses
+    if course_cfgs:
+        before = len(sections)
+        sections = [s for s in sections
+                    if course_cfgs.get(s["course"], {}).get("is_active", True)]
+        removed = before - len(sections)
+        if removed:
+            print(f"  Removed {removed} sections for inactive courses.")
+
+    # Step 2: Trim to max_sections per course
+    if course_cfgs:
+        from collections import defaultdict as _dd
+        course_counts = _dd(int)
+        trimmed = []
+        for s in sections:
+            cfg = course_cfgs.get(s["course"], {})
+            max_s = cfg.get('max_sections')
+            if max_s is not None and course_counts[s["course"]] >= max_s:
+                continue
+            trimmed.append(s)
+            course_counts[s["course"]] += 1
+        trimmed_count = len(sections) - len(trimmed)
+        if trimmed_count:
+            print(f"  Trimmed {trimmed_count} sections to meet max_sections limits.")
+        sections = trimmed
+
+    # Step 3: Generate placeholder sections to meet min_sections
+    # Collect active professor names for round-robin assignment to placeholders
+    if course_cfgs:
+        try:
+            from optimizer.models import Professor as ProfModel
+            active_prof_names = [
+                f"{p.last_name}, {p.first_name}".strip(", ")
+                for p in ProfModel.objects.filter(is_active=True).order_by('last_name', 'first_name')
+            ]
+        except Exception:
+            active_prof_names = []
+
+        # Track which professors are already scheduled so we can distribute load
+        prof_load = {name: 0 for name in active_prof_names}
+        for s in sections:
+            if s["instructor"] != "TBA" and s["instructor"] in prof_load:
+                prof_load[s["instructor"]] += 1
+
+        from collections import defaultdict as _dd2
+        sections_by_course = _dd2(list)
+        for s in sections:
+            sections_by_course[s["course"]].append(s)
+
+        placeholder_count = 0
+        for course_num, cfg in course_cfgs.items():
+            min_s = cfg.get('min_sections')
+            if min_s is None:
+                continue
+            current = sections_by_course.get(course_num, [])
+            shortage = min_s - len(current)
+            if shortage <= 0:
+                continue
+
+            print(f"  MATH {course_num}: need {min_s}, have {len(current)}, "
+                  f"generating {shortage} placeholder section(s).")
+
+            # Use typical values from existing sections of this course if available
+            if current:
+                ref = current[0]
+                ref_credits = ref["credits"]
+                ref_cap     = ref["capacity"]
+                ref_exp     = ref["exp_enroll"]
+                ref_days    = ref["skel_days"]
+                ref_dur     = ref["skel_duration"]
+                ref_block   = ref["skel_block"]
+            else:
+                # No existing sections — use sensible defaults
+                ref_credits = 3
+                ref_cap     = 30
+                ref_exp     = 25
+                ref_days    = "TR"
+                ref_dur     = 80
+                ref_block   = 1  # 9:55 AM
+
+            for j in range(shortage):
+                # Pick the active professor with the lowest current load
+                if active_prof_names:
+                    instructor = min(prof_load, key=prof_load.get)
+                    prof_load[instructor] += 1
+                else:
+                    instructor = "TBA"
+
+                sec = _build_section_entry(
+                    i=len(sections) + 20000 + placeholder_count,
+                    crn=88000 + len(sections) + placeholder_count,
+                    course=course_num,
+                    title="Placeholder Section",
+                    instructor=instructor,
+                    days=ref_days,
+                    duration_mins=ref_dur,
+                    credits=ref_credits,
+                    cap=ref_cap,
+                    actual=0,
+                    exp=ref_exp,
+                    skel_block=ref_block,
+                    skel_room=None,   # no room preference — solver picks freely
+                    skel_bldg="",
+                    db_section_id=None,
+                    max_candidates=max_candidates,
+                )
+                sections.append(sec)
+                placeholder_count += 1
+
+        if placeholder_count:
+            print(f"  Generated {placeholder_count} total placeholder section(s).")
+
+    # ── Floating sections for active professors not in any surviving section ──
     try:
         from optimizer.models import Professor as ProfModel
         active_names = set(f"{p.last_name}, {p.first_name}".strip(", ")
@@ -422,7 +559,6 @@ def load_data_from_db(db_path, semester, course_scope="core", max_candidates=15)
 
     if not sections: raise ValueError("No sections survived filters.")
     return sections, rooms
-
 
 def load_data(*, source="csv", csv_path=None, db_path=None,
               semester="202602", course_scope="core", max_candidates=15):
@@ -681,6 +817,129 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
         model.Add(ov >= fam_sum - ideal); model.Add(ov >= 0)
         fam_over[fam_name] = ov
 
+    course_cfgs = load_course_configs()
+    log_fn(f"Loaded {len(course_cfgs)} course configurations.")
+ 
+    # Group section IDs by course number for course-level constraints
+    sections_by_course = defaultdict(list)
+    for s in sections:
+        sections_by_course[s["course"]].append(s)
+ 
+    # HC-10: Section count floor/ceiling per course
+    # If CourseConfig.min_sections / max_sections is set, enforce it.
+    log_fn("Adding HC-10 course section count constraints...")
+    hc10_count = 0
+    for course_num, cfg in course_cfgs.items():
+        course_sections = sections_by_course.get(course_num, [])
+        if not course_sections:
+            continue
+ 
+        # Build one bool var per section: is this section actually assigned?
+        # (It always is via HC-1, so sum = len(course_sections))
+        # We use in_block-style vars: assigned[sid] = OR over all (pid,ri,b)
+        assigned_vars = []
+        for s in course_sections:
+            sid = s["id"]
+            v = model.NewBoolVar(f"assigned_{sid}")
+            choices = [assign[sid, pid, ri, b]
+                       for pid in sid_to_pids[sid]
+                       for ri in eligible_rooms[sid]
+                       for b in BLOCK_IDS
+                       if (sid, pid, ri, b) in assign]
+            if choices:
+                model.AddMaxEquality(v, choices)
+            else:
+                model.Add(v == 0)
+            assigned_vars.append(v)
+ 
+        section_count = model.NewIntVar(0, len(course_sections), f"cnt_{course_num}")
+        model.Add(section_count == sum(assigned_vars))
+ 
+        if cfg.get('min_sections') is not None:
+            floor = min(cfg['min_sections'], len(course_sections))
+            model.Add(section_count >= floor)
+            hc10_count += 1
+            log_fn(f"  MATH {course_num}: min_sections={floor}")
+ 
+        if cfg.get('max_sections') is not None:
+            ceil_ = min(cfg['max_sections'], len(course_sections))
+            model.Add(section_count <= ceil_)
+            hc10_count += 1
+            log_fn(f"  MATH {course_num}: max_sections={ceil_}")
+ 
+    log_fn(f"  HC-10: {hc10_count} constraints added.")
+
+    # HC-11: Banned time blocks per course
+    log_fn("Adding HC-11 banned block constraints...")
+    hc11_count = 0
+    for course_num, cfg in course_cfgs.items():
+        banned = cfg.get('banned_blocks', [])
+        if not banned:
+            continue
+        for s in sections_by_course.get(course_num, []):
+            sid = s["id"]
+            for b in banned:
+                if b not in BLOCK_IDS:
+                    continue
+                bad_vars = [assign[sid, pid, ri, b]
+                            for pid in sid_to_pids[sid]
+                            for ri in eligible_rooms[sid]
+                            if (sid, pid, ri, b) in assign]
+                for v in bad_vars:
+                    model.Add(v == 0)
+                    hc11_count += 1
+    log_fn(f"  HC-11: {hc11_count} ban constraints added.")
+ 
+    # HC-12: Max sections per block per course
+    log_fn("Adding HC-12 max-per-block constraints...")
+    hc12_count = 0
+    for course_num, cfg in course_cfgs.items():
+        mpb = cfg.get('max_per_block')
+        if mpb is None:
+            continue
+        course_sections = sections_by_course.get(course_num, [])
+        if not course_sections:
+            continue
+        for b in BLOCK_IDS:
+            block_vars = []
+            for s in course_sections:
+                sid = s["id"]
+                v = in_block.get((sid, b))   # already built in HC-2
+                if v is not None:
+                    block_vars.append(v)
+            if len(block_vars) > mpb:
+                model.Add(sum(block_vars) <= mpb)
+                hc12_count += 1
+    log_fn(f"  HC-12: {hc12_count} max-per-block constraints added.")
+ 
+    # HC-13: Room type requirement
+    # lecture = capacity >= 60, seminar = capacity < 40, lab = building contains 'LAB'
+    log_fn("Adding HC-13 room type constraints...")
+    hc13_count = 0
+    for course_num, cfg in course_cfgs.items():
+        rtype = cfg.get('required_room_type', 'any')
+        min_cap = cfg.get('min_room_capacity')
+        if rtype == 'any' and min_cap is None:
+            continue
+        for s in sections_by_course.get(course_num, []):
+            sid = s["id"]
+            for ri in eligible_rooms[sid]:
+                r = rooms[ri]
+                cap = r["capacity"]
+                bldg = r.get("building", "")
+                room_ok = True
+                if rtype == 'lecture'  and cap < 60:   room_ok = False
+                if rtype == 'seminar'  and cap >= 40:  room_ok = False
+                if rtype == 'lab'      and 'LAB' not in bldg.upper(): room_ok = False
+                if min_cap is not None and cap < min_cap: room_ok = False
+                if not room_ok:
+                    for pid in sid_to_pids[sid]:
+                        for b in BLOCK_IDS:
+                            if (sid, pid, ri, b) in assign:
+                                model.Add(assign[sid, pid, ri, b] == 0)
+                                hc13_count += 1
+    log_fn(f"  HC-13: {hc13_count} room type exclusions added.")
+
     # ══════════════════════════════════════════════════════════════════════════
     # SOFT CONSTRAINTS (OBJECTIVE)
     # ══════════════════════════════════════════════════════════════════════════
@@ -719,6 +978,21 @@ def build_and_solve(sections, rooms, weights, solver_time=60, num_opts=3, log_fn
                 for b in BLOCK_IDS:
                     if (sid, pid, ri, b) in assign:
                         obj.append(W_SKEL_BLDG * assign[sid, pid, ri, b])
+
+    # SC-2b: preferred_building from CourseConfig (soft, same weight as SC-2)
+    for course_num, cfg in course_cfgs.items():
+        pref_bldg = cfg.get('preferred_building', '')
+        if not pref_bldg:
+            continue
+        for s in sections_by_course.get(course_num, []):
+            sid = s["id"]
+            for pid in sid_to_pids[sid]:
+                for ri in eligible_rooms[sid]:
+                    if rooms[ri]["building"].upper() == pref_bldg.upper():
+                        continue
+                    for b in BLOCK_IDS:
+                        if (sid, pid, ri, b) in assign:
+                            obj.append(W_SKEL_BLDG * assign[sid, pid, ri, b])
 
     # SC-4: under-enrollment
     for s in sections:

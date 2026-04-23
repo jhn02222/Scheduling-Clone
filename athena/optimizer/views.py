@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from .models import SavedSchedule
 from .solver import load_data, build_and_solve, analyze, BLOCK_LABEL, BLOCK_HHMM
 from django.views.decorators.http import require_http_methods
-from .models import Professor, ProfessorPreference
+from .models import Professor, ProfessorPreference, CourseConfig
 
 # ── In-process job state ─────────────────────────────────────────────────────
 _JOB = {"status": "idle", "log": [], "results": None, "error": None}
@@ -405,3 +405,98 @@ def professor_toggle_active(request, prof_id):
     prof.is_active = not prof.is_active
     prof.save()
     return JsonResponse({'ok': True, 'is_active': prof.is_active})
+@login_required
+def courses_json(request):
+    """Return all CourseConfig rows as JSON for the Courses tab."""
+    from .models import CourseConfig
+    configs = CourseConfig.objects.all().order_by('course_number')
+    data = []
+    for c in configs:
+        data.append({
+            'id':                 c.id,
+            'course_number':      c.course_number,
+            'display_name':       c.display_name,
+            'is_active':          c.is_active,
+            'min_sections':       c.min_sections,
+            'max_sections':       c.max_sections,
+            'banned_blocks':      c.banned_blocks,
+            'max_per_block':      c.max_per_block,
+            'preferred_building': c.preferred_building,
+            'required_room_type': c.required_room_type,
+            'min_room_capacity':  c.min_room_capacity,
+        })
+    return JsonResponse({'courses': data})
+ 
+ 
+@login_required
+@csrf_exempt
+@require_POST
+def course_add(request):
+    """Create or update a CourseConfig row."""
+    from .models import CourseConfig
+    body = json.loads(request.body)
+    cn = int(body.get('course_number', 0))
+    if not cn:
+        return JsonResponse({'ok': False, 'msg': 'course_number required'}, status=400)
+ 
+    obj, _ = CourseConfig.objects.get_or_create(course_number=cn)
+    obj.display_name       = body.get('display_name', obj.display_name)
+    obj.is_active          = body.get('is_active', obj.is_active)
+    obj.min_sections       = body.get('min_sections') or None
+    obj.max_sections       = body.get('max_sections') or None
+    obj.banned_blocks      = body.get('banned_blocks', '')
+    obj.max_per_block      = body.get('max_per_block') or None
+    obj.preferred_building = body.get('preferred_building', '')
+    obj.required_room_type = body.get('required_room_type', 'any')
+    obj.min_room_capacity  = body.get('min_room_capacity') or None
+    obj.save()
+    return JsonResponse({'ok': True, 'id': obj.id})
+ 
+ 
+@login_required
+@csrf_exempt
+@require_POST
+def course_toggle_active(request, course_id):
+    """Toggle is_active for a CourseConfig."""
+    from .models import CourseConfig
+    try:
+        c = CourseConfig.objects.get(id=course_id)
+        c.is_active = not c.is_active
+        c.save()
+        return JsonResponse({'ok': True, 'is_active': c.is_active})
+    except CourseConfig.DoesNotExist:
+        return JsonResponse({'ok': False, 'msg': 'Not found'}, status=404)
+ 
+ 
+@login_required
+@csrf_exempt
+@require_POST
+def course_delete(request, course_id):
+    """Delete a CourseConfig row."""
+    from .models import CourseConfig
+    CourseConfig.objects.filter(id=course_id).delete()
+    return JsonResponse({'ok': True})
+ 
+ 
+@login_required
+def course_detail_json(request, course_id):
+    """Return a single CourseConfig as JSON."""
+    from .models import CourseConfig
+    try:
+        c = CourseConfig.objects.get(id=course_id)
+        return JsonResponse({
+            'id':                 c.id,
+            'course_number':      c.course_number,
+            'display_name':       c.display_name,
+            'is_active':          c.is_active,
+            'min_sections':       c.min_sections,
+            'max_sections':       c.max_sections,
+            'banned_blocks':      c.banned_blocks,
+            'max_per_block':      c.max_per_block,
+            'preferred_building': c.preferred_building,
+            'required_room_type': c.required_room_type,
+            'min_room_capacity':  c.min_room_capacity,
+        })
+    except CourseConfig.DoesNotExist:
+        return JsonResponse({'ok': False}, status=404)
+ 

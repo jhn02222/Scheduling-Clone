@@ -22,4 +22,10 @@ urlpatterns = [
     path('professors/<int:prof_id>/pref/', views.professor_save_pref, name='professor_save_pref'),
     path('professors/<int:prof_id>/delete/', views.professor_delete, name='professor_delete'),
     path('professors/<int:prof_id>/toggle/', views.professor_toggle_active, name='professor_toggle'),
+    path('courses/json/',                           views.courses_json,          name='courses_json'),
+    path('courses/add/',                            views.course_add,            name='course_add'),
+    path('courses/<int:course_id>/json/',            views.course_detail_json,    name='course_detail_json'),
+    path('courses/<int:course_id>/toggle/',          views.course_toggle_active,  name='course_toggle'),
+    path('courses/<int:course_id>/delete/',          views.course_delete,         name='course_delete'),
+ 
 ]

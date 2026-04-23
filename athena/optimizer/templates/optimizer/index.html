@@ -1332,6 +1332,144 @@ html, body {
         </div>
       </div>
     </div>
+    <div class="pane" id="pane-courses">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <h3 class="section-title" style="margin-bottom:4px">Course Configuration</h3>
+      <p style="color:var(--text-muted);font-size:12px">
+        Configure per-course constraints. Inactive courses are excluded from optimization entirely.
+        Section count, banned time slots, max per block, and room type are enforced as hard constraints.
+        Building preference is a soft constraint.
+      </p>
+    </div>
+    <button onclick="showAddCourseModal()" style="
+      background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);
+      padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;margin-left:16px">
+      + Add Course
+    </button>
+  </div>
+ 
+  <div class="card-wrap">
+    <table class="data-table" id="course-config-table">
+      <thead>
+        <tr>
+          <th>Course</th>
+          <th>Status</th>
+          <th>Sections</th>
+          <th>Banned Blocks</th>
+          <th>Max/Block</th>
+          <th>Room Type</th>
+          <th>Pref Building</th>
+          <th>Min Capacity</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="course-config-tbody">
+        <tr><td colspan="9" style="color:var(--text-muted);padding:20px;text-align:center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+ 
+  <!-- Edit panel -->
+  <div id="course-edit-panel" style="display:none;margin-top:16px">
+    <div class="card-wrap" style="padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h3 class="section-title" style="margin:0" id="course-edit-title">Edit Course Config</h3>
+        <button onclick="closeCourseEdit()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <input type="hidden" id="course-edit-id">
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">📚 Display Name</label>
+          <input id="course-edit-name" type="text" placeholder="e.g. Calculus I"
+            style="width:100%;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">🔢 Section Count</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="course-edit-min-sec" type="number" min="0" placeholder="Min"
+              style="width:80px;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+            <span style="color:var(--text-muted);font-size:12px">to</span>
+            <input id="course-edit-max-sec" type="number" min="0" placeholder="Max"
+              style="width:80px;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+            <span style="color:var(--text-muted);font-size:11px">(leave blank = unconstrained)</span>
+          </div>
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">🚫 Banned Time Blocks</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px" id="banned-block-checks">
+            <!-- rendered by JS -->
+          </div>
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">📊 Max Sections per Block</label>
+          <input id="course-edit-mpb" type="number" min="1" placeholder="e.g. 5"
+            style="width:120px;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">🏛 Room Type (hard)</label>
+          <select id="course-edit-rtype" style="width:100%;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+            <option value="any">Any room</option>
+            <option value="lecture">Lecture hall (≥ 60 seats)</option>
+            <option value="seminar">Seminar room (&lt; 40 seats)</option>
+            <option value="lab">Computer lab</option>
+          </select>
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">🏢 Preferred Building (soft)</label>
+          <input id="course-edit-bldg" type="text" placeholder="e.g. BOYD"
+            style="width:100%;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+        </div>
+ 
+        <div>
+          <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:6px">📐 Min Room Capacity Override</label>
+          <input id="course-edit-mincap" type="number" min="1" placeholder="e.g. 60"
+            style="width:120px;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+          <span style="color:var(--text-muted);font-size:11px;display:block;margin-top:4px">Overrides enrollment-based room filter</span>
+        </div>
+ 
+        <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+          <button onclick="closeCourseEdit()" style="
+            background:#fff;border:1px solid var(--uga-border-dark);
+            color:var(--text);border-radius:var(--radius);padding:8px 16px;
+            font-size:13px;cursor:pointer">Cancel</button>
+          <button onclick="saveCourseConfig()" style="
+            background:var(--uga-red);color:#fff;border:none;
+            border-radius:var(--radius);padding:8px 16px;
+            font-size:13px;cursor:pointer">Save Configuration</button>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- Add course modal -->
+  <div id="add-course-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+    <div style="background:#fff;border:1px solid var(--uga-border);border-radius:6px;padding:24px;width:360px;box-shadow:0 18px 40px rgba(0,0,0,.15)">
+      <h3 style="font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:16px">Add Course</h3>
+      <div style="margin-bottom:16px">
+        <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:4px">Course Number</label>
+        <input id="new-course-number" type="number" placeholder="e.g. 1113"
+          style="width:100%;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:4px">Display Name (optional)</label>
+        <input id="new-course-name" type="text" placeholder="e.g. Calculus I"
+          style="width:100%;border:1px solid var(--uga-border);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="hideAddCourseModal()" style="background:#fff;border:1px solid var(--uga-border-dark);color:var(--text);border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="addCourse()" style="background:var(--uga-red);color:#fff;border:none;border-radius:var(--radius);padding:8px 16px;font-size:13px;cursor:pointer">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
     <!-- ── Saved Schedules ─────────────────────────────────────────────── -->
     <div class="pane" id="pane-saved">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -2218,6 +2356,194 @@ function humanizeLogLine(line) {
   if (s.includes('error')) return 'Something went wrong';
 
   return 'Running optimizer';
+}
+/* ── Course Configuration ────────────────────────────────────────────── */
+const BLOCK_LABELS_MAP = {
+  0: '8:15 AM', 1: '9:55 AM', 2: '11:35 AM',
+  3: '1:15 PM', 4: '2:55 PM', 5: '4:35 PM'
+};
+const ROOM_TYPE_LABELS = {
+  any: 'Any', lecture: 'Lecture ≥60', seminar: 'Seminar <40', lab: 'Lab'
+};
+ 
+async function loadCourses() {
+  const resp = await fetch('/courses/json/');
+  const data = await resp.json();
+  renderCourseTable(data.courses);
+}
+ 
+function renderCourseTable(courses) {
+  const tb = document.getElementById('course-config-tbody');
+  if (!courses.length) {
+    tb.innerHTML = `<tr><td colspan="9" style="color:var(--text-muted);padding:20px;text-align:center">
+      No courses configured. Click <strong>+ Add Course</strong> to start.
+    </td></tr>`;
+    return;
+  }
+ 
+  tb.innerHTML = courses.map(c => {
+    const secRange = (c.min_sections != null || c.max_sections != null)
+      ? `${c.min_sections ?? '—'} – ${c.max_sections ?? '—'}`
+      : '—';
+    const banned = c.banned_blocks
+      ? c.banned_blocks.split(',').filter(Boolean).map(b =>
+          `<span class="badge badge-warn" style="margin:1px">${BLOCK_LABELS_MAP[parseInt(b)] || b}</span>`
+        ).join('')
+      : '<span style="color:var(--text-muted)">—</span>';
+ 
+    return `<tr>
+      <td>
+        <strong>MATH ${c.course_number}</strong>
+        ${c.display_name ? `<br><small style="color:var(--text-muted)">${esc(c.display_name)}</small>` : ''}
+      </td>
+      <td>${c.is_active
+        ? '<span class="badge badge-active">Active</span>'
+        : '<span class="badge badge-inactive">Inactive</span>'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${secRange}</td>
+      <td>${banned}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${c.max_per_block ?? '—'}</td>
+      <td><span class="badge badge-ok">${ROOM_TYPE_LABELS[c.required_room_type] || c.required_room_type}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${c.preferred_building || '—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${c.min_room_capacity ?? '—'}</td>
+      <td style="white-space:nowrap">
+        <button onclick="editCourse(${c.id})" style="
+          background:rgba(0,0,0,.06);border:1px solid #ccc;color:#333;
+          border-radius:var(--radius);padding:4px 10px;font-size:11px;cursor:pointer;margin-right:4px">Edit</button>
+        <button onclick="toggleCourseActive(${c.id})" style="
+          background:${c.is_active ? 'rgba(30,90,40,.10)' : 'rgba(186,12,47,.08)'};
+          border:1px solid ${c.is_active ? 'rgba(30,90,40,.28)' : 'rgba(186,12,47,.3)'};
+          color:${c.is_active ? '#1e5a28' : '#ba0c2f'};
+          border-radius:var(--radius);padding:4px 10px;font-size:11px;cursor:pointer;margin-right:4px">
+          ${c.is_active ? 'Deactivate' : 'Activate'}</button>
+        <button onclick="deleteCourse(${c.id}, ${c.course_number})" style="
+          background:rgba(186,12,47,.10);border:1px solid rgba(186,12,47,.3);
+          color:#ba0c2f;border-radius:var(--radius);padding:4px 10px;font-size:11px;cursor:pointer">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+ 
+function renderBannedBlockCheckboxes(currentBanned) {
+  const banned = (currentBanned || '').split(',').map(s => s.trim()).filter(Boolean);
+  const container = document.getElementById('banned-block-checks');
+  container.innerHTML = Object.entries(BLOCK_LABELS_MAP).map(([id, label]) => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+      background:${banned.includes(String(id)) ? 'rgba(186,12,47,.08)' : '#f7f7f5'};
+      border:1px solid ${banned.includes(String(id)) ? 'rgba(186,12,47,.3)' : 'var(--uga-border)'};
+      border-radius:var(--radius);padding:5px 10px">
+      <input type="checkbox" id="ban-block-${id}" value="${id}"
+        ${banned.includes(String(id)) ? 'checked' : ''}
+        style="accent-color:var(--uga-red)">
+      ${label}
+    </label>
+  `).join('');
+}
+ 
+function getBannedBlocksFromCheckboxes() {
+  return [0,1,2,3,4,5]
+    .filter(i => document.getElementById(`ban-block-${i}`)?.checked)
+    .join(',');
+}
+ 
+async function editCourse(id) {
+  const resp = await fetch(`/courses/${id}/json/`);
+  const c = await resp.json();
+ 
+  document.getElementById('course-edit-id').value       = c.id;
+  document.getElementById('course-edit-title').textContent = `Configure — MATH ${c.course_number}`;
+  document.getElementById('course-edit-name').value     = c.display_name || '';
+  document.getElementById('course-edit-min-sec').value  = c.min_sections ?? '';
+  document.getElementById('course-edit-max-sec').value  = c.max_sections ?? '';
+  document.getElementById('course-edit-mpb').value      = c.max_per_block ?? '';
+  document.getElementById('course-edit-rtype').value    = c.required_room_type || 'any';
+  document.getElementById('course-edit-bldg').value     = c.preferred_building || '';
+  document.getElementById('course-edit-mincap').value   = c.min_room_capacity ?? '';
+ 
+  renderBannedBlockCheckboxes(c.banned_blocks || '');
+ 
+  const panel = document.getElementById('course-edit-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth' });
+}
+ 
+function closeCourseEdit() {
+  document.getElementById('course-edit-panel').style.display = 'none';
+}
+ 
+async function saveCourseConfig() {
+  const id = document.getElementById('course-edit-id').value;
+  const minSec = document.getElementById('course-edit-min-sec').value;
+  const maxSec = document.getElementById('course-edit-max-sec').value;
+  const mpb    = document.getElementById('course-edit-mpb').value;
+  const mincap = document.getElementById('course-edit-mincap').value;
+ 
+  // Get course number from current table row (need to fetch it)
+  const resp0 = await fetch(`/courses/${id}/json/`);
+  const existing = await resp0.json();
+ 
+  const payload = {
+    course_number:      existing.course_number,
+    display_name:       document.getElementById('course-edit-name').value.trim(),
+    is_active:          existing.is_active,
+    min_sections:       minSec ? parseInt(minSec) : null,
+    max_sections:       maxSec ? parseInt(maxSec) : null,
+    banned_blocks:      getBannedBlocksFromCheckboxes(),
+    max_per_block:      mpb ? parseInt(mpb) : null,
+    preferred_building: document.getElementById('course-edit-bldg').value.trim().toUpperCase(),
+    required_room_type: document.getElementById('course-edit-rtype').value,
+    min_room_capacity:  mincap ? parseInt(mincap) : null,
+  };
+ 
+  await fetch('/courses/add/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify(payload),
+  });
+ 
+  closeCourseEdit();
+  loadCourses();
+}
+ 
+async function toggleCourseActive(id) {
+  await fetch(`/courses/${id}/toggle/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+  });
+  loadCourses();
+}
+ 
+async function deleteCourse(id, num) {
+  if (!confirm(`Remove configuration for MATH ${num}?`)) return;
+  await fetch(`/courses/${id}/delete/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+  });
+  loadCourses();
+}
+ 
+function showAddCourseModal() {
+  document.getElementById('add-course-modal').style.display = 'flex';
+}
+ 
+function hideAddCourseModal() {
+  document.getElementById('add-course-modal').style.display = 'none';
+}
+ 
+async function addCourse() {
+  const num  = parseInt(document.getElementById('new-course-number').value);
+  const name = document.getElementById('new-course-name').value.trim();
+  if (!num) return;
+ 
+  await fetch('/courses/add/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ course_number: num, display_name: name }),
+  });
+ 
+  document.getElementById('new-course-number').value = '';
+  document.getElementById('new-course-name').value   = '';
+  hideAddCourseModal();
+  loadCourses();
 }
 </script>
 </body>

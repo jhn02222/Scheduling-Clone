@@ -257,3 +257,67 @@ class SavedSchedule(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class CourseConfig(models.Model):
+    """
+    Per-course hard and soft constraints for the optimizer.
+    One row per course number. All fields optional — None = unconstrained.
+    """
+    course_number = models.IntegerField(unique=True)
+    display_name  = models.CharField(max_length=120, blank=True)
+ 
+    # Active / inactive — inactive courses are excluded from the run entirely
+    is_active = models.BooleanField(default=True)
+ 
+    # ── Section count constraint ───────────────────────────────────────────
+    # If set, solver must assign exactly this many sections for the course.
+    # Set min_sections = max_sections for an exact count.
+    min_sections = models.IntegerField(null=True, blank=True,
+        help_text="Minimum number of sections that must be scheduled")
+    max_sections = models.IntegerField(null=True, blank=True,
+        help_text="Maximum number of sections allowed")
+ 
+    # ── Banned time blocks ─────────────────────────────────────────────────
+    # Comma-separated block IDs (0-5) that are forbidden for this course.
+    # e.g. "5" bans the 4:35 PM block; "0,5" bans 8:15 AM and 4:35 PM.
+    banned_blocks = models.CharField(max_length=40, blank=True, default="",
+        help_text="Comma-separated block IDs (0–5) forbidden for this course")
+ 
+    # ── Max sections per block ─────────────────────────────────────────────
+    max_per_block = models.IntegerField(null=True, blank=True,
+        help_text="Max sections of this course allowed in any single time block")
+ 
+    # ── Building preference ────────────────────────────────────────────────
+    # Soft preference — solver penalises assignments outside this building.
+    preferred_building = models.CharField(max_length=40, blank=True, default="",
+        help_text="Preferred building code (soft constraint)")
+ 
+    # ── Room type requirement ──────────────────────────────────────────────
+    ROOM_TYPE_CHOICES = [
+        ("any",       "Any room"),
+        ("lecture",   "Lecture hall (≥ 60 seats)"),
+        ("seminar",   "Seminar room (< 40 seats)"),
+        ("lab",       "Computer lab"),
+    ]
+    required_room_type = models.CharField(max_length=20, default="any",
+        choices=ROOM_TYPE_CHOICES,
+        help_text="Room type requirement (hard constraint)")
+ 
+    # Minimum capacity override — if set, overrides exp_enroll-based room filter
+    min_room_capacity = models.IntegerField(null=True, blank=True,
+        help_text="Force a minimum room capacity regardless of enrollment")
+ 
+    class Meta:
+        ordering = ["course_number"]
+        verbose_name = "Course Configuration"
+ 
+    def __str__(self):
+        return f"MATH {self.course_number} config"
+ 
+    def get_banned_block_list(self):
+        """Return list of int block IDs that are banned."""
+        if not self.banned_blocks:
+            return []
+        return [int(b.strip()) for b in self.banned_blocks.split(",") if b.strip().isdigit()]
+ 
