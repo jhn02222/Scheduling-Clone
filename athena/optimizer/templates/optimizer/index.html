@@ -1061,6 +1061,7 @@ html, body {
     <button class="tab-btn" data-tab="profs" onclick="switchTab('profs',this)">Professors</button>
     <button class="tab-btn" data-tab="saved" onclick="switchTab('saved',this)">Saved</button>
     <button class="tab-btn" data-tab="courses" onclick="switchTab('courses',this)">Courses</button>
+    <button class="tab-btn" data-tab="editor" onclick="switchTab('editor',this)">✏ Editor</button>
     
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
@@ -1470,7 +1471,211 @@ html, body {
     </div>
   </div>
 </div>
- 
+ <!-- ── EDITOR PANE — paste after pane-courses, before pane-saved ── -->
+<div class="pane" id="pane-editor" style="padding:0;height:calc(100vh - 56px);overflow:hidden;">
+  <div id="editor-shell" style="display:grid;grid-template-columns:1fr 380px;height:100%;overflow:hidden;">
+
+    <!-- LEFT: section list -->
+    <div style="display:flex;flex-direction:column;border-right:1px solid var(--uga-border);background:#fff;overflow:hidden;">
+
+      <!-- Header -->
+      <div style="padding:14px 18px;border-bottom:1px solid var(--uga-border);background:var(--uga-offwhite);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <h2 style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--text)">Schedule Editor</h2>
+        <span id="editor-section-count" style="background:var(--uga-red);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;font-family:'JetBrains Mono',monospace;">0 sections</span>
+        <span id="editor-label-display" style="margin-left:auto;font-size:11px;color:var(--text-soft);font-family:'JetBrains Mono',monospace;"></span>
+      </div>
+
+      <!-- Search + filter -->
+      <div style="padding:10px 14px;border-bottom:1px solid var(--uga-border);display:flex;gap:8px;flex-shrink:0;">
+        <input type="text" id="editor-search" placeholder="Search course, instructor, room…"
+          oninput="editorFilter()"
+          style="flex:1;padding:7px 10px;border:1px solid var(--uga-border);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:#fafafa;outline:none;">
+        <select id="editor-course-filter" onchange="editorFilter()"
+          style="padding:7px 8px;border:1px solid var(--uga-border);font-size:12px;color:var(--text);background:#fafafa;outline:none;">
+          <option value="">All Courses</option>
+        </select>
+      </div>
+
+      <!-- Section list -->
+      <div id="editor-section-list" style="overflow-y:auto;flex:1;"></div>
+
+      <!-- Add section button -->
+      <button onclick="editorAddSection()" style="
+        margin:10px 14px;padding:9px;background:transparent;
+        border:1px dashed var(--uga-border);color:var(--text-soft);
+        font-size:12px;font-weight:600;cursor:pointer;transition:border-color .2s,color .2s;
+        text-align:center;">
+        + Add New Section
+      </button>
+    </div>
+
+    <!-- RIGHT: Edit panel -->
+    <div id="editor-edit-panel" style="display:flex;flex-direction:column;background:var(--uga-offwhite);overflow:hidden;">
+      <!-- Empty state -->
+      <div id="editor-empty-state" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;">
+        <div style="width:72px;height:4px;background:var(--uga-red);margin:0 auto 16px;"></div>
+        <p style="font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text)">Select a section to edit</p>
+        <p style="font-size:12px;color:var(--text-soft);max-width:240px;line-height:1.6;">
+          Click any section in the list to edit its instructor, room, time block, days, and more.
+        </p>
+      </div>
+      <!-- Form (hidden until section selected) -->
+      <div id="editor-form-wrap" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+        <!-- Form header -->
+        <div id="editor-form-header" style="padding:14px 18px;background:var(--uga-black);flex-shrink:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <h3 id="editor-form-title" style="font-family:'DM Serif Display',serif;font-size:15px;color:#fff;"></h3>
+              <p id="editor-form-sub" style="font-size:10px;color:rgba(255,255,255,.5);font-family:'JetBrains Mono',monospace;margin-top:2px;"></p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button id="editor-revert-btn" onclick="editorRevert()" style="display:none;
+                background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);
+                padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;">↺ Revert</button>
+              <button onclick="editorSaveSection()" style="
+                background:var(--uga-red);color:#fff;border:none;padding:6px 14px;
+                font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conflict banner -->
+        <div id="editor-conflict-banner" style="display:none;margin:12px 16px 0;
+          background:rgba(186,12,47,.08);border:1px solid rgba(186,12,47,.3);
+          border-left:3px solid var(--uga-red);padding:10px 14px;font-size:12px;color:var(--uga-red);font-weight:600;">
+          ⚠ <span id="editor-conflict-msg"></span>
+        </div>
+
+        <!-- Form body -->
+        <div style="flex:1;overflow-y:auto;padding:14px 16px;">
+          <input type="hidden" id="editor-active-sid">
+
+          <!-- Course & Instructor -->
+          <div style="background:#fff;border:1px solid var(--uga-border);margin-bottom:12px;">
+            <div style="padding:7px 12px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--uga-red);border-bottom:1px solid var(--uga-border);background:#fafafa;">📚 Course & Instructor</div>
+            <div style="padding:12px;display:grid;gap:10px;">
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Course</label>
+                <select id="ef-course" onchange="editorFieldChange('course',this.value)" style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Instructor</label>
+                <select id="ef-instructor" onchange="editorFieldChange('instructor',this.value)" style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Time & Days -->
+          <div style="background:#fff;border:1px solid var(--uga-border);margin-bottom:12px;">
+            <div style="padding:7px 12px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--uga-red);border-bottom:1px solid var(--uga-border);background:#fafafa;">🕐 Time & Days</div>
+            <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Time Block</label>
+                <select id="ef-block" onchange="editorFieldChange('block',parseInt(this.value))" style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+                  <option value="0">8:15 AM</option>
+                  <option value="1">9:55 AM</option>
+                  <option value="2">11:35 AM</option>
+                  <option value="3">1:15 PM</option>
+                  <option value="4">2:55 PM</option>
+                  <option value="5">4:35 PM</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Meeting Days</label>
+                <select id="ef-days" onchange="editorFieldChange('days',this.value)" style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+                  <option>MWF</option><option>TR</option><option>MW</option>
+                  <option>MWR</option><option>TWR</option><option>MTR</option>
+                  <option>TRF</option><option>MWF</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Duration (min)</label>
+                <select id="ef-duration" onchange="editorFieldChange('duration',this.value)" style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+                  <option value="55">55 min</option>
+                  <option value="80">80 min</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Room & Capacity -->
+          <div style="background:#fff;border:1px solid var(--uga-border);margin-bottom:12px;">
+            <div style="padding:7px 12px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--uga-red);border-bottom:1px solid var(--uga-border);background:#fafafa;">🏛 Room & Capacity</div>
+            <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div style="grid-column:1/-1;">
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Room</label>
+                <input type="text" id="ef-room" onchange="editorFieldChange('room',this.value)"
+                  style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Capacity</label>
+                <input type="number" id="ef-capacity" min="1" onchange="editorFieldChange('capacity',parseInt(this.value))"
+                  style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">CRN</label>
+                <input type="number" id="ef-crn" onchange="editorFieldChange('crn',parseInt(this.value))"
+                  style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Note -->
+          <div style="background:#fff;border:1px solid var(--uga-border);margin-bottom:12px;">
+            <div style="padding:7px 12px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--uga-red);border-bottom:1px solid var(--uga-border);background:#fafafa;">📝 Note (internal)</div>
+            <div style="padding:12px;">
+              <input type="text" id="ef-note" placeholder="e.g. Swapped per dept request"
+                onchange="editorFieldChange('note',this.value)"
+                style="width:100%;padding:7px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fff;outline:none;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom bar -->
+        <div style="border-top:1px solid var(--uga-border);background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div style="font-size:11px;color:var(--text-soft);font-family:'JetBrains Mono',monospace;">
+            <span id="editor-change-count" style="color:var(--accent-amber);font-weight:700;">0</span> section(s) edited
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="editorExportCSV()" style="
+              background:#fff;color:var(--uga-black);border:1px solid var(--uga-border-dark);
+              padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;">
+              ⬇ Export Edited CSV
+            </button>
+            <button onclick="editorSaveAll()" style="
+              background:var(--uga-black);color:#fff;border:none;
+              padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;">
+              💾 Save Edited Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Editor Save Modal -->
+<div id="editor-save-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid var(--uga-border);border-top:4px solid var(--uga-red);padding:24px;width:380px;box-shadow:0 20px 50px rgba(0,0,0,.15);">
+    <h3 style="font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:16px;">Save Edited Schedule</h3>
+    <p style="font-size:12px;color:var(--text-soft);margin-bottom:14px;line-height:1.6;">
+      Saves a new entry with your manual edits. The original solver schedule is preserved separately.
+    </p>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);display:block;margin-bottom:5px;">Schedule Name</label>
+      <input id="editor-save-name" type="text" placeholder="e.g. Option A — Manual Edits"
+        style="width:100%;padding:8px 10px;border:1px solid var(--uga-border);font-size:13px;color:var(--text);background:#fafafa;outline:none;">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="editorHideSaveModal()" style="background:#fff;border:1px solid var(--uga-border-dark);color:var(--text);padding:8px 16px;font-size:12px;cursor:pointer;">Cancel</button>
+      <button onclick="editorConfirmSave()" style="background:var(--uga-red);color:#fff;border:none;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</div>
     <!-- ── Saved Schedules ─────────────────────────────────────────────── -->
     <div class="pane" id="pane-saved">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -2117,6 +2322,7 @@ function switchTab(name, btn) {
   if (name === 'profs') loadProfessors();
   if (name === 'saved') loadSavedSchedules();
   if (name === 'courses') loadCourses();
+   if (name === 'editor') initEditor();
 }
 /* ── Saved Schedules ────────────────────────────────────────────────── */
 async function loadSavedSchedules() {
@@ -2546,6 +2752,356 @@ async function addCourse() {
   document.getElementById('new-course-name').value   = '';
   hideAddCourseModal();
   loadCourses();
+}
+/* ── EDITOR STATE ────────────────────────────────────────────────────── */
+let _editorSections  = [];   // full section list (copy from solver output)
+let _editorEdits     = {};   // sid -> {field: value, ...}
+let _editorActiveSid = null;
+let _editorLabel     = '';
+let _editorScore     = '';
+let _editorProfList  = [];   // list of active professor names
+let _editorRoomList  = [];   // list of known rooms
+
+const EDITOR_BLOCKS = {0:'8:15 AM',1:'9:55 AM',2:'11:35 AM',3:'1:15 PM',4:'2:55 PM',5:'4:35 PM'};
+
+/* ── Init editor from current solver result ─────────────────────────── */
+function initEditor() {
+  const r = _results[_activeOpt];
+  if (!r) return;
+
+  _editorLabel = r.label || 'Schedule';
+  _editorScore = r.score || '';
+
+  // Build flat section list from calendar (deduplicated by sid)
+  const cal = r.stats.calendar || [];
+  const seen = new Set();
+  _editorSections = [];
+  cal.forEach(ev => {
+    if (seen.has(ev.sid)) return;
+    seen.add(ev.sid);
+    _editorSections.push({
+      sid:        ev.sid,
+      crn:        ev.crn,
+      course:     ev.course,
+      courseName: `MATH ${ev.course}`,
+      instructor: ev.instructor,
+      block:      Math.round((ev.start - 8*60) / 100) || 0, // approximate
+      days:       ev.days,
+      duration:   String(ev.duration_mins || 55),
+      room:       ev.room,
+      capacity:   30,
+      note:       '',
+      isNew:      false,
+    });
+  });
+
+  // Fix block from BLOCK_HHMM mapping
+  _editorSections.forEach(s => {
+    // Derive block from start minute
+    const startMin = (r.stats.calendar || []).find(ev => ev.sid === s.sid)?.start;
+    if (startMin !== undefined) {
+      const blockMap = {8*60:0, 9*60+55:1, 11*60+35:2, 13*60+15:3, 14*60+55:4, 16*60+35:5};
+      s.block = blockMap[startMin] ?? 0;
+    }
+  });
+
+  _editorEdits = {};
+  _editorActiveSid = null;
+
+  // Build instructor list from existing sections + professors
+  const instrSet = new Set(_editorSections.map(s => s.instructor).filter(i => i !== 'TBA'));
+  instrSet.add('TBA');
+  _editorProfList = [...instrSet].sort();
+
+  // Build room list
+  const roomSet = new Set(_editorSections.map(s => s.room).filter(Boolean));
+  _editorRoomList = [...roomSet].sort();
+
+  // Build course filter options
+  const courseSet = new Set(_editorSections.map(s => s.course));
+  const courseFilter = document.getElementById('editor-course-filter');
+  courseFilter.innerHTML = '<option value="">All Courses</option>' +
+    [...courseSet].sort((a,b)=>a-b).map(c => `<option value="${c}">MATH ${c}</option>`).join('');
+
+  document.getElementById('editor-label-display').textContent = _editorLabel;
+
+  editorRenderList();
+  editorShowEmpty();
+}
+
+function initEditorFromLoaded(label, score, sections, overrides) {
+  _editorLabel = label;
+  _editorScore = score;
+  _editorSections = sections;
+  _editorEdits = overrides || {};
+  _editorActiveSid = null;
+
+  const courseSet = new Set(sections.map(s => s.course));
+  const courseFilter = document.getElementById('editor-course-filter');
+  courseFilter.innerHTML = '<option value="">All Courses</option>' +
+    [...courseSet].sort((a,b)=>a-b).map(c => `<option value="${c}">MATH ${c}</option>`).join('');
+
+  const instrSet = new Set(sections.map(s => s.instructor).filter(Boolean));
+  instrSet.add('TBA');
+  _editorProfList = [...instrSet].sort();
+
+  const roomSet = new Set(sections.map(s => s.room).filter(Boolean));
+  _editorRoomList = [...roomSet].sort();
+
+  document.getElementById('editor-label-display').textContent = label;
+  editorRenderList();
+  editorShowEmpty();
+}
+
+/* ── Render section list ─────────────────────────────────────────────── */
+function editorFilter() {
+  editorRenderList();
+}
+
+function editorRenderList() {
+  const q = (document.getElementById('editor-search')?.value || '').toLowerCase();
+  const cf = document.getElementById('editor-course-filter')?.value || '';
+
+  const filtered = _editorSections.filter(s => {
+    const cur = editorCurrentValues(s);
+    const matchQ = !q ||
+      String(cur.course).includes(q) ||
+      cur.instructor.toLowerCase().includes(q) ||
+      cur.room.toLowerCase().includes(q);
+    const matchC = !cf || String(cur.course) === cf;
+    return matchQ && matchC;
+  });
+
+  const list = document.getElementById('editor-section-list');
+  if (!list) return;
+
+  document.getElementById('editor-section-count').textContent = `${_editorSections.length} sections`;
+  document.getElementById('editor-change-count').textContent = Object.keys(_editorEdits).length;
+
+  list.innerHTML = filtered.map(s => {
+    const cur = editorCurrentValues(s);
+    const isEdited = !!_editorEdits[s.sid];
+    const isActive = s.sid === _editorActiveSid;
+    let borderColor = isActive ? 'var(--uga-red)' : isEdited ? 'var(--accent-amber)' : 'transparent';
+    let bg = isActive ? 'rgba(186,12,47,.05)' : '#fff';
+
+    return `<div onclick="editorSelectSection(${s.sid})" style="
+      display:grid;grid-template-columns:90px 1fr 120px 80px;
+      align-items:center;gap:8px;padding:10px 14px;
+      border-bottom:1px solid #f0f0f0;cursor:pointer;
+      border-left:3px solid ${borderColor};
+      padding-left:${borderColor !== 'transparent' ? '11px' : '14px'};
+      background:${bg};transition:background .1s;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--uga-red);">MATH ${cur.course}</span>
+      <div style="min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cur.courseName || 'MATH '+cur.course}</div>
+        <div style="font-size:11px;color:var(--text-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(cur.instructor)}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-soft);text-align:right;">
+        ${cur.days} · ${EDITOR_BLOCKS[cur.block]||'?'}<br>
+        <span style="font-size:9px;">${esc(cur.room||'')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
+        ${isEdited ? '<span style="background:rgba(178,106,0,.12);color:#7a4a00;border:1px solid rgba(178,106,0,.3);font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;">Edited</span>' : ''}
+        ${cur.isNew ? '<span style="background:rgba(46,125,50,.12);color:#1b5e20;border:1px solid rgba(46,125,50,.3);font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;">New</span>' : ''}
+        ${cur.instructor === 'TBA' ? '<span style="background:rgba(186,12,47,.10);color:#ba0c2f;border:1px solid rgba(186,12,47,.3);font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;">TBA</span>' : ''}
+      </div>
+    </div>`;
+  }).join('') || '<div style="padding:20px;text-align:center;color:var(--text-soft);font-size:12px;">No sections match.</div>';
+}
+
+function editorCurrentValues(s) {
+  const edits = _editorEdits[s.sid] || {};
+  return {...s, ...edits};
+}
+
+/* ── Select section ─────────────────────────────────────────────────── */
+function editorSelectSection(sid) {
+  _editorActiveSid = sid;
+  editorRenderList();
+  editorPopulateForm(sid);
+}
+
+function editorPopulateForm(sid) {
+  const s = _editorSections.find(x => x.sid === sid);
+  if (!s) return;
+  const cur = editorCurrentValues(s);
+  const isEdited = !!_editorEdits[sid];
+
+  document.getElementById('editor-active-sid').value = sid;
+  document.getElementById('editor-form-title').textContent = `MATH ${cur.course} · CRN ${cur.crn}`;
+  document.getElementById('editor-form-sub').textContent = isEdited ? 'unsaved changes' : 'no changes';
+  document.getElementById('editor-revert-btn').style.display = isEdited ? 'block' : 'none';
+
+  // Populate course select
+  const courseSelect = document.getElementById('ef-course');
+  const courseNums = [...new Set(_editorSections.map(x => x.course))].sort((a,b)=>a-b);
+  courseSelect.innerHTML = courseNums.map(c => `<option value="${c}" ${cur.course==c?'selected':''}>MATH ${c}</option>`).join('');
+
+  // Populate instructor select
+  const instrSelect = document.getElementById('ef-instructor');
+  instrSelect.innerHTML = _editorProfList.map(i =>
+    `<option ${cur.instructor===i?'selected':''}>${esc(i)}</option>`
+  ).join('');
+
+  document.getElementById('ef-block').value    = cur.block;
+  document.getElementById('ef-days').value     = cur.days;
+  document.getElementById('ef-duration').value = String(cur.duration || '55');
+  document.getElementById('ef-room').value     = cur.room || '';
+  document.getElementById('ef-capacity').value = cur.capacity || 30;
+  document.getElementById('ef-crn').value      = cur.crn || '';
+  document.getElementById('ef-note').value     = cur.note || '';
+
+  // Show conflict
+  const conflict = editorCheckConflict(cur, sid);
+  const banner = document.getElementById('editor-conflict-banner');
+  if (conflict) {
+    banner.style.display = 'block';
+    document.getElementById('editor-conflict-msg').textContent = conflict;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  document.getElementById('editor-empty-state').style.display = 'none';
+  document.getElementById('editor-form-wrap').style.display = 'flex';
+}
+
+function editorShowEmpty() {
+  document.getElementById('editor-empty-state').style.display = 'flex';
+  document.getElementById('editor-form-wrap').style.display = 'none';
+}
+
+/* ── Field change ─────────────────────────────────────────────────────── */
+function editorFieldChange(field, value) {
+  const sid = parseInt(document.getElementById('editor-active-sid').value);
+  if (!sid && sid !== 0) return;
+  if (!_editorEdits[sid]) _editorEdits[sid] = {};
+  _editorEdits[sid][field] = value;
+  document.getElementById('editor-change-count').textContent = Object.keys(_editorEdits).length;
+
+  // Update conflict
+  const s = _editorSections.find(x => x.sid === sid);
+  if (s) {
+    const cur = editorCurrentValues(s);
+    const conflict = editorCheckConflict(cur, sid);
+    const banner = document.getElementById('editor-conflict-banner');
+    if (conflict) {
+      banner.style.display = 'block';
+      document.getElementById('editor-conflict-msg').textContent = conflict;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // Update revert btn + sub
+  document.getElementById('editor-revert-btn').style.display = 'block';
+  document.getElementById('editor-form-sub').textContent = 'unsaved changes';
+  editorRenderList();
+}
+
+function editorSaveSection() {
+  // "Apply" just marks it visually — changes are already tracked in _editorEdits
+  const sid = parseInt(document.getElementById('editor-active-sid').value);
+  document.getElementById('editor-form-sub').textContent = 'applied';
+  editorRenderList();
+}
+
+function editorRevert() {
+  const sid = parseInt(document.getElementById('editor-active-sid').value);
+  delete _editorEdits[sid];
+  document.getElementById('editor-change-count').textContent = Object.keys(_editorEdits).length;
+  editorPopulateForm(sid);
+  editorRenderList();
+}
+
+/* ── Conflict check ─────────────────────────────────────────────────── */
+function editorCheckConflict(cur, sid) {
+  for (const s of _editorSections) {
+    if (s.sid === sid) continue;
+    const other = editorCurrentValues(s);
+    if (other.room === cur.room && other.block === cur.block) {
+      const overlap = [...String(cur.days)].some(d => String(other.days).includes(d));
+      if (overlap) return `Room ${cur.room} also booked by MATH ${other.course} (CRN ${other.crn}) at ${EDITOR_BLOCKS[cur.block]}`;
+    }
+    if (other.instructor !== 'TBA' && other.instructor === cur.instructor && other.block === cur.block) {
+      const overlap = [...String(cur.days)].some(d => String(other.days).includes(d));
+      if (overlap) return `${cur.instructor} also teaching MATH ${other.course} (CRN ${other.crn}) at ${EDITOR_BLOCKS[cur.block]}`;
+    }
+  }
+  return null;
+}
+
+/* ── Add section ────────────────────────────────────────────────────── */
+function editorAddSection() {
+  const newSid = Date.now();
+  const firstCourse = _editorSections[0]?.course || 1113;
+  const newSec = {
+    sid: newSid, crn: 99000 + _editorSections.length,
+    course: firstCourse, courseName: `MATH ${firstCourse}`,
+    instructor: 'TBA', block: 1, days: 'TR',
+    duration: '80', room: '', capacity: 30, note: '', isNew: true,
+  };
+  _editorSections.unshift(newSec);
+  editorRenderList();
+  editorSelectSection(newSid);
+}
+
+/* ── Save all ───────────────────────────────────────────────────────── */
+function editorSaveAll() {
+  document.getElementById('editor-save-name').value =
+    `${_editorLabel} — Edited ${new Date().toLocaleDateString()}`;
+  document.getElementById('editor-save-modal').style.display = 'flex';
+}
+
+function editorHideSaveModal() {
+  document.getElementById('editor-save-modal').style.display = 'none';
+}
+
+async function editorConfirmSave() {
+  const name = document.getElementById('editor-save-name').value.trim() ||
+    `Edited Schedule ${new Date().toLocaleDateString()}`;
+
+  // Build full sections snapshot with edits applied
+  const snapshot = _editorSections.map(s => editorCurrentValues(s));
+
+  const resp = await fetch('/editor/save/', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({
+      name,
+      editor_data: _editorEdits,
+      sections_snapshot: snapshot,
+      score: _editorScore,
+    }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    editorHideSaveModal();
+    // Flash confirmation
+    const btn = document.querySelector('[onclick="editorSaveAll()"]');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Saved!';
+      btn.style.background = '#2e7d32';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+    }
+    loadSavedSchedules();
+  }
+}
+
+/* ── Export edited CSV ──────────────────────────────────────────────── */
+async function editorExportCSV() {
+  const snapshot = _editorSections.map(s => editorCurrentValues(s));
+  const resp = await fetch('/editor/export-csv/', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({sections: snapshot, label: _editorLabel, score: _editorScore}),
+  });
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'edited_schedule.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>

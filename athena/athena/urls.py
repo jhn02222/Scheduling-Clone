@@ -2,13 +2,12 @@ from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from optimizer import views
-from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('login/', auth_views.LoginView.as_view(template_name='optimizer/login.html'), name='login'),
-   path('logout/', views.logout_view, name='logout'),
+    path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('run/', views.run_optimizer, name='run_optimizer'),
     path('status/', views.job_status, name='job_status'),
@@ -23,10 +22,13 @@ urlpatterns = [
     path('professors/<int:prof_id>/pref/', views.professor_save_pref, name='professor_save_pref'),
     path('professors/<int:prof_id>/delete/', views.professor_delete, name='professor_delete'),
     path('professors/<int:prof_id>/toggle/', views.professor_toggle_active, name='professor_toggle'),
-    path('courses/json/',                           views.courses_json,          name='courses_json'),
-    path('courses/add/',                            views.course_add,            name='course_add'),
-    path('courses/<int:course_id>/json/',            views.course_detail_json,    name='course_detail_json'),
-    path('courses/<int:course_id>/toggle/',          views.course_toggle_active,  name='course_toggle'),
-    path('courses/<int:course_id>/delete/',          views.course_delete,         name='course_delete'),
- 
+    path('courses/json/', views.courses_json, name='courses_json'),
+    path('courses/add/', views.course_add, name='course_add'),
+    path('courses/<int:course_id>/json/', views.course_detail_json, name='course_detail_json'),
+    path('courses/<int:course_id>/toggle/', views.course_toggle_active, name='course_toggle'),
+    path('courses/<int:course_id>/delete/', views.course_delete, name='course_delete'),
+    # Editor endpoints
+    path('editor/save/', views.save_editor, name='save_editor'),
+    path('editor/load/<int:schedule_id>/', views.load_editor, name='load_editor'),
+    path('editor/export-csv/', views.export_editor_csv, name='export_editor_csv'),
 ]

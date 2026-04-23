@@ -504,3 +504,126 @@ def course_detail_json(request, course_id):
 def logout_view(request):
     auth_logout(request)
     return redirect('/login/')
+
+
+@login_required
+@csrf_exempt
+@require_POST
+def save_editor(request):
+    """Save manual editor overrides to a SavedSchedule row."""
+    with _LOCK:
+        results = _JOB.get("results")
+
+    body = json.loads(request.body or b"{}")
+    name = body.get("name", f"Edited Schedule {__import__('datetime').date.today()}")
+    editor_data = body.get("editor_data", {})
+    # sections_data is the full editor section list (for CSV export)
+    sections_snapshot = body.get("sections_snapshot", [])
+
+    # If there's a current result in memory, use it as base
+    if results:
+        result = results[0]
+        solution_data = result["solution"]
+        stats_data = result["stats"]
+        score = result["solution"].get("score", 0)
+    else:
+        # No current result — load from existing saved if schedule_id provided
+        schedule_id = body.get("schedule_id")
+        if schedule_id:
+            try:
+                existing = SavedSchedule.objects.get(id=schedule_id, user=request.user)
+                solution_data = existing.solution_data
+                stats_data = existing.stats_data
+                score = existing.score or 0
+            except SavedSchedule.DoesNotExist:
+                return JsonResponse({'ok': False, 'msg': 'Base schedule not found'}, status=404)
+        else:
+            return JsonResponse({'ok': False, 'msg': 'No schedule loaded'}, status=400)
+
+    # Store editor_data alongside solution_data
+    saved = SavedSchedule.objects.create(
+        user=request.user,
+        name=name,
+        semester=getattr(settings, "SCHEDULE_SEMESTER", "202602"),
+        solution_data=solution_data,
+        stats_data=stats_data,
+        score=score,
+        editor_data={"overrides": editor_data, "sections_snapshot": sections_snapshot},
+        is_edited=True,
+    )
+
+    # Keep only last 10 per user
+    all_schedules = SavedSchedule.objects.filter(user=request.user).order_by('-created_at')
+    if all_schedules.count() > 10:
+        ids_to_delete = list(all_schedules.values_list('id', flat=True)[10:])
+        SavedSchedule.objects.filter(id__in=ids_to_delete).delete()
+
+    return JsonResponse({'ok': True, 'id': saved.id})
+
+
+@login_required
+def load_editor(request, schedule_id):
+    """Load a saved schedule including its editor overrides."""
+    try:
+        s = SavedSchedule.objects.get(id=schedule_id, user=request.user)
+        editor_data = s.editor_data or {}
+        return JsonResponse({
+            'ok': True,
+            'label': s.name,
+            'score': s.score,
+            'stats': s.stats_data,
+            'is_edited': s.is_edited,
+            'editor_overrides': editor_data.get('overrides', {}),
+            'sections_snapshot': editor_data.get('sections_snapshot', []),
+        })
+    except SavedSchedule.DoesNotExist:
+        return JsonResponse({'ok': False, 'msg': 'Schedule not found.'}, status=404)
+
+
+def export_editor_csv(request):
+    """Export the manually edited schedule as CSV."""
+    # Get editor sections from POST body or from saved schedule
+    if request.method == 'POST':
+        body = json.loads(request.body or b'{}')
+        sections = body.get('sections', [])
+        label = body.get('label', 'Edited Schedule')
+        score = body.get('score', '')
+    else:
+        return HttpResponse("Use POST", status=405)
+
+    BLOCK_TIMES = {
+        0: '8:15 AM', 1: '9:55 AM', 2: '11:35 AM',
+        3: '1:15 PM', 4: '2:55 PM', 5: '4:35 PM'
+    }
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Schedule", "Score", "CRN", "Course", "Instructor",
+                     "Days", "Block", "Time", "Room", "Duration", "Capacity", "Note"])
+
+    seen = set()
+    for sec in sorted(sections, key=lambda s: (s.get('course', 0), s.get('block', 0))):
+        key = (sec.get('crn'), sec.get('course'))
+        if key in seen:
+            continue
+        seen.add(key)
+        block = sec.get('block', 0)
+        writer.writerow([
+            label,
+            score,
+            sec.get('crn', ''),
+            f"MATH {sec.get('course', '')}",
+            sec.get('instructor', 'TBA'),
+            sec.get('days', ''),
+            block,
+            BLOCK_TIMES.get(int(block), ''),
+            sec.get('room', ''),
+            sec.get('duration', ''),
+            sec.get('capacity', ''),
+            sec.get('note', ''),
+        ])
+
+    output.seek(0)
+    resp = HttpResponse(output, content_type="text/csv")
+    resp["Content-Disposition"] = f'attachment; filename="edited_schedule.csv"'
+    return resp
