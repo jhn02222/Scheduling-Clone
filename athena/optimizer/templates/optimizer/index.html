@@ -1060,6 +1060,7 @@ html, body {
     <button class="tab-btn" data-tab="instrs" onclick="switchTab('instrs',this)">Instructors</button>
     <button class="tab-btn" data-tab="profs" onclick="switchTab('profs',this)">Professors</button>
     <button class="tab-btn" data-tab="saved" onclick="switchTab('saved',this)">Saved</button>
+    <button class="tab-btn" data-tab="courses" onclick="switchTab('courses',this)">Courses</button>
     
     <div id="opt-selector" style="display:none">
       <label>Option:</label>
@@ -2115,6 +2116,7 @@ function switchTab(name, btn) {
   if (name === 'calendar') renderCalendar();
   if (name === 'profs') loadProfessors();
   if (name === 'saved') loadSavedSchedules();
+  if (name === 'courses') loadCourses();
 }
 /* ── Saved Schedules ────────────────────────────────────────────────── */
 async function loadSavedSchedules() {
