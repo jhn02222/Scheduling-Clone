@@ -279,6 +279,20 @@ def schedules_json(request):
 def load_schedule(request, schedule_id):
     try:
         s = SavedSchedule.objects.get(id=schedule_id, user=request.user)
+        
+        # Rebuild a result object so export_csv can find it
+        result = {
+            "solution": {
+                "label": s.name,
+                "score": s.score,
+                "assignment": s.solution_data.get("assignment", {}),
+            },
+            "stats": s.stats_data,
+        }
+        with _LOCK:
+            _JOB["results"] = [result]
+            _JOB["status"] = "done"
+        
         return JsonResponse({
             'ok': True,
             'label': s.name,
