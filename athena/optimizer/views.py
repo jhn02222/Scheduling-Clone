@@ -184,22 +184,37 @@ def export_csv(request):
     sol     = result["solution"]
     stats   = result["stats"]
 
+    # Normalize assignment keys to strings to handle JSON round-trip
+    assignment = {str(k): v for k, v in sol["assignment"].items()}
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Option", "Score", "CRN", "Course", "Instructor",
-                     "Days", "Block", "Time", "Room", "Moved"])
+                     "Days", "Duration (min)", "Block", "Time", "Room", "Pattern", "Moved"])
     seen = set()
     for ev in sorted(stats["calendar"], key=lambda e: (e["course"], e["start"], e["crn"])):
         key = (ev["crn"], ev["course"])
         if key in seen:
             continue
         seen.add(key)
-        asgn = sol["assignment"][ev["sid"]]
-        b    = asgn["block"]
-        writer.writerow([sol["label"], sol["score"], ev["crn"],
-                         f"MATH {ev['course']}", ev["instructor"],
-                         ev["days"], b, BLOCK_LABEL[b], asgn["room"],
-                         "YES" if ev["moved"] else "no"])
+        asgn = assignment.get(str(ev["sid"]))
+        if not asgn:
+            continue
+        b = asgn["block"]
+        writer.writerow([
+            sol["label"],
+            sol["score"],
+            ev["crn"],
+            f"MATH {ev['course']}",
+            ev["instructor"],
+            asgn.get("days", ev.get("days", "")),
+            asgn.get("duration_mins", ev.get("duration_mins", "")),
+            b,
+            BLOCK_LABEL[b],
+            asgn["room"],
+            asgn.get("pattern_label", ""),
+            "YES" if ev["moved"] else "no",
+        ])
 
     output.seek(0)
     resp = HttpResponse(output, content_type="text/csv")
