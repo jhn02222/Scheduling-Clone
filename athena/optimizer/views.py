@@ -285,25 +285,27 @@ def schedules_json(request):
 def load_schedule(request, schedule_id):
     try:
         s = SavedSchedule.objects.get(id=schedule_id, user=request.user)
-        
-        # Rebuild a result object so export_csv can find it
         result = {
             "solution": {
-                "label": s.name,
-                "score": s.score,
+                "label":      s.name,
+                "score":      s.score,
                 "assignment": s.solution_data.get("assignment", {}),
             },
             "stats": s.stats_data,
         }
         with _LOCK:
             _JOB["results"] = [result]
-            _JOB["status"] = "done"
-        
+            _JOB["status"]  = "done"
+
+        editor_data = s.editor_data or {}
         return JsonResponse({
-            'ok': True,
-            'label': s.name,
-            'score': s.score,
-            'stats': s.stats_data,
+            'ok':               True,
+            'label':            s.name,
+            'score':            s.score,
+            'stats':            s.stats_data,
+            'is_edited':        s.is_edited,
+            'editor_overrides': editor_data.get('overrides', {}),
+            'sections_snapshot': editor_data.get('sections_snapshot', []),
         })
     except SavedSchedule.DoesNotExist:
         return JsonResponse({'ok': False, 'msg': 'Schedule not found.'}, status=404)
@@ -511,45 +513,46 @@ def logout_view(request):
 @require_POST
 def save_editor(request):
     """Save manual editor overrides to a SavedSchedule row."""
+    body = json.loads(request.body or b"{}")
+    name             = body.get("name", f"Edited Schedule {__import__('datetime').date.today()}")
+    editor_data      = body.get("editor_data", {})
+    sections_snapshot = body.get("sections_snapshot", [])
+    score            = body.get("score", 0)
+
+    # Try to get base solution from in-memory job first
     with _LOCK:
         results = _JOB.get("results")
 
-    body = json.loads(request.body or b"{}")
-    name = body.get("name", f"Edited Schedule {__import__('datetime').date.today()}")
-    editor_data = body.get("editor_data", {})
-    # sections_data is the full editor section list (for CSV export)
-    sections_snapshot = body.get("sections_snapshot", [])
-
-    # If there's a current result in memory, use it as base
     if results:
-        result = results[0]
+        result        = results[0]
         solution_data = result["solution"]
-        stats_data = result["stats"]
-        score = result["solution"].get("score", 0)
+        stats_data    = result["stats"]
+        base_score    = result["solution"].get("score", score)
     else:
-        # No current result — load from existing saved if schedule_id provided
-        schedule_id = body.get("schedule_id")
-        if schedule_id:
-            try:
-                existing = SavedSchedule.objects.get(id=schedule_id, user=request.user)
-                solution_data = existing.solution_data
-                stats_data = existing.stats_data
-                score = existing.score or 0
-            except SavedSchedule.DoesNotExist:
-                return JsonResponse({'ok': False, 'msg': 'Base schedule not found'}, status=404)
-        else:
-            return JsonResponse({'ok': False, 'msg': 'No schedule loaded'}, status=400)
+        # Fall back to most recent saved schedule for this user
+        existing = SavedSchedule.objects.filter(
+            user=request.user
+        ).order_by('-created_at').first()
 
-    # Store editor_data alongside solution_data
+        if existing:
+            solution_data = existing.solution_data
+            stats_data    = existing.stats_data
+            base_score    = existing.score or score
+        else:
+            # Nothing at all — save with empty solution data
+            solution_data = {}
+            stats_data    = {}
+            base_score    = score
+
     saved = SavedSchedule.objects.create(
-        user=request.user,
-        name=name,
-        semester=getattr(settings, "SCHEDULE_SEMESTER", "202602"),
-        solution_data=solution_data,
-        stats_data=stats_data,
-        score=score,
-        editor_data={"overrides": editor_data, "sections_snapshot": sections_snapshot},
-        is_edited=True,
+        user          = request.user,
+        name          = name,
+        semester      = getattr(settings, "SCHEDULE_SEMESTER", "202602"),
+        solution_data = solution_data,
+        stats_data    = stats_data,
+        score         = base_score,
+        editor_data   = {"overrides": editor_data, "sections_snapshot": sections_snapshot},
+        is_edited     = True,
     )
 
     # Keep only last 10 per user

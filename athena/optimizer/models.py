@@ -247,17 +247,20 @@ class SavedSchedule(models.Model):
         on_delete=models.CASCADE,
         related_name="saved_schedules",
     )
-    name = models.CharField(max_length=200)
-    semester = models.TextField()
+    name          = models.CharField(max_length=200)
+    semester      = models.TextField()
     solution_data = models.JSONField()
-    stats_data = models.JSONField()
-    weights_used = models.JSONField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    score = models.IntegerField(null=True)
+    stats_data    = models.JSONField()
+    weights_used  = models.JSONField(null=True, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    score         = models.IntegerField(null=True)
+    # ── NEW ───────────────────────────────────────────────────────────
+    editor_data   = models.JSONField(default=dict, blank=True)
+    is_edited     = models.BooleanField(default=False)
+    # ─────────────────────────────────────────────────────────────────
 
     class Meta:
         ordering = ["-created_at"]
-
 
 class CourseConfig(models.Model):
     """

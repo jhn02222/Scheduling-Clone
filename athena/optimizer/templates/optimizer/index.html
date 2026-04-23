@@ -2366,7 +2366,7 @@ async function loadSavedSchedule(id, name) {
   const data = await resp.json();
   if (!data.ok) return;
 
-  // Inject into results as if it was just generated
+  // Restore into results so all tabs work
   _results = [{
     label: data.label,
     score: data.score,
@@ -2377,8 +2377,20 @@ async function loadSavedSchedule(id, name) {
   const sel = document.getElementById('opt-select');
   sel.innerHTML = `<option value="0">${esc(data.label)} (score: ${data.score})</option>`;
   document.getElementById('opt-selector').style.display = 'flex';
-  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('save-btn').style.display     = 'block';
+  document.getElementById('placeholder').style.display  = 'none';
+
   renderAll();
+
+  // If this schedule has editor data, pre-load it into the editor state
+  if (data.is_edited && data.sections_snapshot && data.sections_snapshot.length) {
+    initEditorFromLoaded(
+      data.label,
+      data.score,
+      data.sections_snapshot,
+      data.editor_overrides || {}
+    );
+  }
 
   // Switch to summary tab
   const summaryBtn = document.querySelector('.tab-btn[data-tab="summary"]');
@@ -3069,31 +3081,47 @@ async function editorConfirmSave() {
   const name = document.getElementById('editor-save-name').value.trim() ||
     `Edited Schedule ${new Date().toLocaleDateString()}`;
 
-  // Build full sections snapshot with edits applied
   const snapshot = _editorSections.map(s => editorCurrentValues(s));
 
-  const resp = await fetch('/editor/save/', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
-    body: JSON.stringify({
-      name,
-      editor_data: _editorEdits,
-      sections_snapshot: snapshot,
-      score: _editorScore,
-    }),
-  });
+  let resp;
+  try {
+    resp = await fetch('/editor/save/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken':  getCookie('csrftoken')
+      },
+      body: JSON.stringify({
+        name,
+        editor_data:       _editorEdits,
+        sections_snapshot: snapshot,
+        score:             _editorScore || 0,
+      }),
+    });
+  } catch (err) {
+    alert('Network error saving schedule: ' + err.message);
+    return;
+  }
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    alert(`Save failed (${resp.status}): ${text}`);
+    return;
+  }
+
   const data = await resp.json();
   if (data.ok) {
     editorHideSaveModal();
-    // Flash confirmation
     const btn = document.querySelector('[onclick="editorSaveAll()"]');
     if (btn) {
       const orig = btn.textContent;
-      btn.textContent = '✓ Saved!';
+      btn.textContent    = '✓ Saved!';
       btn.style.background = '#2e7d32';
       setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
     }
     loadSavedSchedules();
+  } else {
+    alert('Save failed: ' + (data.msg || 'Unknown error'));
   }
 }
 
