@@ -103,8 +103,8 @@ for days in DAY_COMBOS:
 _PAT_BY_PID = {p["pid"]: p for p in MEETING_PATTERNS}
 
 # ── Credit-hour rules ────────────────────────────────────────────────────────
-CREDIT_MINUTE_RULES   = {3: {"min": 140, "max": 175},
-                         4: {"min": 150, "max": 250}}
+CREDIT_MINUTE_RULES   = {3: {"min": 150, "max": 175},
+                         4: {"min": 200, "max": 250}}
 CREDIT_DAYCOUNT_RULES = {3: {2, 3}, 4: {2, 3, 4}}
 
 # Only adjacent block pairs can violate 20-min turnaround
